@@ -1,4 +1,4 @@
-/* Band 27: Entschlüsseln, Seiten bauen, Blättern, Brief, Konfetti, Musik.
+/* Band 27: Sperrbildschirm, Entschlüsseln, 3D-Buch, Wallet-Karte, Konfetti, Musik.
    Die Inhalte stehen verschlüsselt in inhalt.enc.js (Quelle: inhalt/data.js). */
 (function () {
   'use strict';
@@ -6,49 +6,51 @@
   var ENC = window.BUCH_ENC;
   var KEY_STORE = 'band27-key';
   var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-  var D = null;          // entschlüsselter Inhalt
-  var IMAGES = {};
-  var cryptoKey = null;
+  var D = null, IMAGES = {}, cryptoKey = null;
 
   /* ------------------------------------------------------------------ */
   /* Helfer                                                              */
   /* ------------------------------------------------------------------ */
 
   function $(sel, root) { return (root || document).querySelector(sel); }
+  function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
     });
   }
-
-  // *kursiv* und [Platzhalter]
   function fmt(s) {
     return esc(s)
       .replace(/\*([^*]+)\*/g, '<em>$1</em>')
       .replace(/\[([^\]]+)\]/g, '<mark class="ph">[$1]</mark>');
   }
-
-  function paras(list, cls) {
+  function paras(list, leadCls) {
     return (list || []).map(function (t, i) {
-      return '<p' + (cls && i === 0 ? ' class="' + cls + '"' : '') + '>' + fmt(t) + '</p>';
+      return '<p' + (leadCls && i === 0 ? ' class="' + leadCls + '"' : '') + '>' + fmt(t) + '</p>';
     }).join('');
   }
-
   function fromB64(s) {
     var bin = atob(s), out = new Uint8Array(bin.length);
     for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
     return out;
   }
   function toB64(buf) {
-    var bytes = new Uint8Array(buf), s = '';
-    for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+    var b = new Uint8Array(buf), s = '';
+    for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
     return btoa(s);
+  }
+  function haptic(ms) {
+    if (navigator.vibrate) { try { navigator.vibrate(ms || 8); } catch (e) { /* egal */ } }
+  }
+  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function debounce(fn, ms) {
+    var t;
+    return function () { clearTimeout(t); t = setTimeout(fn, ms); };
   }
 
   /* ------------------------------------------------------------------ */
-  /* Entschlüsseln                                                       */
+  /* Krypto                                                              */
   /* ------------------------------------------------------------------ */
 
   function deriveKey(password) {
@@ -56,84 +58,139 @@
     return crypto.subtle.importKey('raw', enc, 'PBKDF2', false, ['deriveKey']).then(function (base) {
       return crypto.subtle.deriveKey(
         { name: 'PBKDF2', salt: fromB64(ENC.salt), iterations: ENC.iter, hash: 'SHA-256' },
-        base, { name: 'AES-GCM', length: 256 }, true, ['decrypt']
-      );
+        base, { name: 'AES-GCM', length: 256 }, true, ['decrypt']);
     });
   }
-
   function decryptPayload(key) {
     return crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(ENC.iv) }, key, fromB64(ENC.data))
       .then(function (buf) { return JSON.parse(new TextDecoder().decode(buf)); });
   }
-
   function remember(key) {
     crypto.subtle.exportKey('raw', key).then(function (raw) {
-      try { sessionStorage.setItem(KEY_STORE, toB64(raw)); } catch (e) { /* egal */ }
+      try { sessionStorage.setItem(KEY_STORE + ENC.salt, toB64(raw)); } catch (e) { /* egal */ }
     });
   }
-
   function storedKey() {
     var raw = null;
-    try { raw = sessionStorage.getItem(KEY_STORE); } catch (e) { /* egal */ }
+    try { raw = sessionStorage.getItem(KEY_STORE + ENC.salt); } catch (e) { /* egal */ }
     if (!raw) return Promise.reject();
     return crypto.subtle.importKey('raw', fromB64(raw), { name: 'AES-GCM' }, true, ['decrypt']);
   }
 
   /* ------------------------------------------------------------------ */
-  /* Passwort-Bildschirm                                                 */
+  /* Sperrbildschirm                                                     */
   /* ------------------------------------------------------------------ */
 
-  function setupGate() {
-    var form = $('#gate-form'), input = $('#gate-input'), btn = $('#gate-btn'), err = $('#gate-error');
+  var KEYS = [['1', ''], ['2', 'ABC'], ['3', 'DEF'], ['4', 'GHI'], ['5', 'JKL'], ['6', 'MNO'],
+              ['7', 'PQRS'], ['8', 'TUV'], ['9', 'WXYZ'], null, ['0', ''], null];
+
+  function setupLock() {
+    var lock = $('#lock'), msg = $('#lock-msg'), dots = $('#dots'), del = $('#lock-del');
+    var entry = '', busy = false;
 
     if (!ENC || !window.crypto || !crypto.subtle) {
-      err.textContent = !ENC
-        ? 'Inhalt fehlt. Bitte zuerst "Website bauen" ausführen.'
-        : 'Bitte die Seite über https öffnen.';
-      btn.disabled = true;
+      msg.textContent = !ENC ? 'Inhalt fehlt. Bitte zuerst "Website bauen" ausführen.' : 'Bitte die Seite über https öffnen.';
+      $('#keypad').hidden = true;
+      del.hidden = true;
       return;
     }
-    if (ENC.hint) { $('#gate-hint').textContent = ENC.hint; $('#gate-hint').hidden = false; }
-    if (ENC.numeric) input.setAttribute('inputmode', 'numeric');
+    if (ENC.hint) { $('#lock-hint').textContent = ENC.hint; $('#lock-hint').hidden = false; }
 
-    // Schon in diesem Tab entsperrt?
     storedKey().then(function (key) {
-      return decryptPayload(key).then(function (p) { cryptoKey = key; open(p, true); });
-    }).catch(function () { /* Passwort nötig */ });
+      return decryptPayload(key).then(function (p) { cryptoKey = key; start(p, true); });
+    }).catch(function () { /* Code nötig */ });
 
-    form.addEventListener('submit', function (e) {
-      e.preventDefault();
-      if (btn.classList.contains('is-busy') || !input.value.trim()) return;
-      btn.classList.add('is-busy');
-      err.textContent = '';
-      deriveKey(input.value).then(function (key) {
+    function attempt(value) {
+      busy = true;
+      lock.classList.add('is-busy');
+      msg.textContent = '';
+      return deriveKey(value).then(function (key) {
         return decryptPayload(key).then(function (p) {
           cryptoKey = key;
           remember(key);
-          input.blur();
-          setTimeout(function () { open(p, false); }, 150);
+          haptic(12);
+          lock.classList.remove('is-busy');
+          lock.classList.add('is-ok');
+          return wait(260).then(function () { start(p, false); });
         });
       }).catch(function () {
-        btn.classList.remove('is-busy');
-        err.textContent = 'Das war leider nicht das richtige Passwort.';
-        form.classList.remove('is-wrong');
-        void form.offsetWidth;
-        form.classList.add('is-wrong');
-        input.select();
+        busy = false;
+        lock.classList.remove('is-busy');
+        haptic([30, 40, 30]);
+        msg.textContent = 'Falscher Code';
+        lock.classList.remove('is-wrong');
+        void lock.offsetWidth;
+        lock.classList.add('is-wrong');
+        return wait(450).then(function () { entry = ''; render(); });
       });
+    }
+
+    if (!ENC.numeric) {
+      // Passwort mit Buchstaben: klassisches Eingabefeld
+      $('#keypad').hidden = true;
+      del.hidden = true;
+      dots.hidden = true;
+      var form = $('#lock-form'), input = $('#lock-input');
+      form.hidden = false;
+      $('.lock__title').textContent = 'Passwort eingeben';
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (busy || !input.value.trim()) return;
+        input.blur();
+        attempt(input.value).then(function () { input.value = ''; });
+      });
+      return;
+    }
+
+    var len = ENC.len || 4;
+    dots.innerHTML = new Array(len + 1).join('<span class="dot"></span>');
+    var pad = $('#keypad');
+    pad.innerHTML = KEYS.map(function (k) {
+      if (!k) return '<span class="key key--empty"></span>';
+      return '<button type="button" class="key" data-digit="' + k[0] + '" aria-label="' + k[0] + '">' +
+        '<span class="key__num">' + k[0] + '</span>' + (k[1] ? '<span class="key__abc">' + k[1] + '</span>' : '') + '</button>';
+    }).join('');
+
+    function render() {
+      $$('.dot', dots).forEach(function (d, i) { d.classList.toggle('is-filled', i < entry.length); });
+      del.classList.toggle('is-visible', entry.length > 0);
+    }
+
+    function press(d) {
+      if (busy || entry.length >= len) return;
+      haptic(6);
+      entry += d;
+      render();
+      if (entry.length === len) setTimeout(function () { attempt(entry); }, 120);
+    }
+
+    pad.addEventListener('click', function (e) {
+      var k = e.target.closest('.key[data-digit]');
+      if (k) press(k.getAttribute('data-digit'));
     });
+    del.addEventListener('click', function () {
+      if (busy || !entry) return;
+      entry = entry.slice(0, -1);
+      render();
+    });
+    document.addEventListener('keydown', function onKey(e) {
+      if (!document.body.contains(lock)) { document.removeEventListener('keydown', onKey); return; }
+      if (/^\d$/.test(e.key)) press(e.key);
+      else if (e.key === 'Backspace' && !busy) { entry = entry.slice(0, -1); render(); }
+    });
+    render();
   }
 
-  function open(payload, instant) {
+  function start(payload, instant) {
     D = payload.content;
     IMAGES = payload.images || {};
-    var gate = $('#gate');
-    if (instant) gate.remove();
-    else {
-      gate.classList.add('is-leaving');
-      setTimeout(function () { gate.remove(); }, 600);
-    }
+    var lock = $('#lock');
     buildBook();
+    if (instant) lock.remove();
+    else {
+      lock.classList.add('is-leaving');
+      setTimeout(function () { lock.remove(); }, 700);
+    }
     if (payload.hasAudio) setupMusic();
   }
 
@@ -141,181 +198,149 @@
   /* Seiten                                                              */
   /* ------------------------------------------------------------------ */
 
-  var screens = [];
+  var sheets = [];        // { el, label }
   var special = {};
 
-  function screen(html, cls) {
-    var s = document.createElement('section');
-    s.className = 'screen' + (cls ? ' ' + cls : '');
-    s.innerHTML = '<div class="screen__inner">' + html + '</div>';
-    screens.push(s);
-    return s;
+  function page(label, bodyHtml, cls, opts) {
+    opts = opts || {};
+    var n = sheets.length + 1;
+    var el = document.createElement('div');
+    el.className = 'sheet';
+    el.innerHTML =
+      '<div class="face face--front"><div class="pg ' + (cls || '') + '">' +
+        (opts.head === false ? '' : '<header class="pg__head">' + fmt(opts.head || label) + '</header>') +
+        '<div class="pg__body">' + bodyHtml + '</div>' +
+        (opts.number === false ? '' : '<footer class="pg__num">' + n + '</footer>') +
+      '</div><span class="shade" aria-hidden="true"></span></div>' +
+      '<div class="face face--back"><span class="shade" aria-hidden="true"></span></div>';
+    sheets.push({ el: el, label: label });
+    return el;
   }
 
-  function chapterHead(label, title) {
-    return '<header class="chap reveal">' +
-      '<p class="eyebrow">' + fmt(label) + '</p>' +
-      '<h2 class="chap__title">' + fmt(title) + '</h2>' +
-      '</header>';
+  function opener(label, title) {
+    return '<p class="eyebrow">' + fmt(label) + '</p><h2 class="title">' + fmt(title) + '</h2>';
   }
 
-  function runningHead(text) {
-    return '<p class="running reveal">' + fmt(text) + '</p>';
+  function coverHtml() {
+    var c = D.cover;
+    var chat = (c.chat || []).map(function (m) {
+      return '<div class="imsg imsg--' + (m.von === 'ich' ? 'me' : 'them') + '">' + fmt(m.text) + '</div>';
+    }).join('');
+    return '<div class="face face--front cover__front">' +
+        '<div class="cover__content">' +
+          '<p class="cover__band">' + fmt(c.untertitel) + '</p>' +
+          '<h1 class="cover__title">' + fmt(c.titel) + '</h1>' +
+          (chat ? '<div class="imsgs">' + chat + '</div>' : '') +
+        '</div>' +
+      '</div>' +
+      '<div class="face face--back cover__inside"></div>';
   }
 
   function buildPages() {
-    screens = [];
+    sheets = [];
     special = {};
 
-    // 1. Cover
-    var c = D.cover;
-    var chat = (c.chat || []).map(function (m, i) {
-      return '<div class="bubble bubble--' + (m.von === 'ich' ? 'me' : 'her') + ' reveal" style="--d:' + (0.35 + i * 0.12) + 's">' + fmt(m.text) + '</div>';
-    }).join('');
-    screen(
-      '<div class="cover">' +
-        '<div class="cover__head">' +
-          '<span class="cover__rule reveal"></span>' +
-          '<h1 class="cover__title reveal" style="--d:.08s">' + fmt(c.titel) + '</h1>' +
-          '<p class="cover__sub reveal" style="--d:.18s">' + fmt(c.untertitel) + '</p>' +
-        '</div>' +
-        (chat ? '<div class="chat">' + chat + '</div>' : '') +
-        '<p class="swipe-hint reveal" style="--d:.9s">' + fmt(D.ui && D.ui.blaetternHinweis || '') +
-          ' <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></p>' +
-      '</div>', 'screen--cover');
+    page('Widmung', '<div class="dedication">' + paras(D.widmung.text) + '</div>', 'pg--center', { head: false });
 
-    // 2. Widmung
-    screen('<div class="dedication reveal">' + paras(D.widmung.text) + '</div>', 'screen--center');
-
-    // 3. Prolog
     var pr = D.prolog;
-    (pr.seiten || []).forEach(function (seite, i) {
-      screen(
-        (i ? runningHead(pr.label) : chapterHead(pr.label, pr.titel)) +
-        '<div class="prose reveal" style="--d:.12s">' + paras(seite, i ? '' : 'lead') + '</div>');
+    (pr.seiten || []).forEach(function (s, i) {
+      page(pr.label, (i ? '' : opener(pr.label, pr.titel)) + '<div class="prose">' + paras(s, i ? '' : 'lead') + '</div>',
+        '', { head: i ? pr.label : false });
     });
 
-    // 4. Kapitel 27
     var k = D.kapitel;
-    screen(chapterHead(k.label, k.titel) + '<div class="prose reveal" style="--d:.12s">' + paras(k.intro, 'lead') + '</div>');
+    page(k.label, opener(k.label, k.titel) + '<div class="prose">' + paras(k.intro, 'lead') + '</div>', '', { head: false });
     (k.fotos || []).forEach(function (f, i) {
       var src = IMAGES[f.bild];
-      var media = src
-        ? '<img class="photo__img" src="' + src + '" alt="">'
-        : '<div class="photo__img photo__img--missing"><span>Foto folgt<small>' + esc(f.bild) + '</small></span></div>';
-      screen(
-        runningHead(k.label + ' · ' + k.titel) +
+      page(k.label,
         '<figure class="photo">' +
-          '<div class="reveal" style="--d:.05s">' + media + '</div>' +
-          '<figcaption class="reveal" style="--d:.2s"><span class="photo__no">Abb. ' + (i + 1) + '</span>' + fmt(f.text) + '</figcaption>' +
-        '</figure>', 'screen--photo');
+          (src ? '<img class="photo__img" src="' + src + '" alt="" draggable="false">'
+               : '<div class="photo__img photo__img--missing"><span>Foto folgt<small>' + esc(f.bild) + '</small></span></div>') +
+          '<figcaption><span class="photo__no">Abb. ' + (i + 1) + '</span>' + fmt(f.text) + '</figcaption>' +
+        '</figure>', 'pg--photo', { head: k.label + ' · ' + k.titel });
     });
 
-    // 5. Epilog
     var ep = D.epilog;
-    special.epilog = screens.length;
-    screen(
-      chapterHead(ep.label, ep.titel) +
-      '<div class="prose reveal" style="--d:.12s">' + paras(ep.text, 'lead') + '</div>' +
-      (ep.gruss ? '<p class="signature reveal" style="--d:.3s">' + fmt(ep.gruss) + '</p>' : ''),
-      'screen--epilog').appendChild(document.createElement('canvas')).className = 'confetti';
+    special.epilog = sheets.length;
+    var epEl = page(ep.label, opener(ep.label, ep.titel) + '<div class="prose">' + paras(ep.text, 'lead') + '</div>' +
+      (ep.gruss ? '<p class="signature">' + fmt(ep.gruss) + '</p>' : ''), '', { head: false });
+    var cv = document.createElement('canvas');
+    cv.className = 'confetti';
+    $('.face--front', epEl).appendChild(cv);
 
-    // 6. Anhang
-    special.anhang = screens.length;
-    screen(letterHtml(), 'screen--letter');
+    var a = D.anhang, b = a.brief;
+    page(a.label, opener(a.label, a.titel) +
+      '<div class="letter"><p class="letter__salute">' + fmt(b.anrede) + '</p>' + paras(b.text) +
+      (b.gruss ? '<p class="signature">' + fmt(b.gruss) + '</p>' : '') + '</div>', '', { head: false });
 
-    // 7. Rückseite
+    special.wallet = sheets.length;
+    page(a.label, walletHtml(), 'pg--wallet', { head: a.label + ' · ' + (b.gutschein.titel || '') });
+
     var r = D.rueckseite;
-    screen(
+    page('Rückseite',
       '<div class="back">' +
-        '<p class="back__blurb reveal">' + fmt(r.klappentext) + '</p>' +
-        '<div class="back__reviews">' + (r.rezensionen || []).map(function (x, i) {
-          return '<blockquote class="review reveal" style="--d:' + (0.15 + i * 0.1) + 's"><p>' + fmt(x.text) + '</p><cite>' + fmt(x.quelle) + '</cite></blockquote>';
+        '<p class="back__blurb">' + fmt(r.klappentext) + '</p>' +
+        '<div class="back__reviews">' + (r.rezensionen || []).map(function (x) {
+          return '<blockquote class="review"><p>' + fmt(x.text) + '</p><cite>' + fmt(x.quelle) + '</cite></blockquote>';
         }).join('') + '</div>' +
-        '<div class="back__foot reveal" style="--d:.4s">' +
-          '<button type="button" class="restart">Von vorn lesen</button>' +
-          '<div class="barcode"><span class="barcode__bars"></span><span class="barcode__num">' + fmt(r.isbn || '') + '</span></div>' +
-        '</div>' +
-      '</div>', 'screen--back');
+        '<div class="back__foot"><button type="button" class="pill pill--ghost restart">Von vorn lesen</button>' +
+        '<span class="back__isbn">' + fmt(r.isbn || '') + '</span></div>' +
+      '</div>', 'pg--back', { head: false, number: false });
   }
 
   /* ------------------------------------------------------------------ */
-  /* Anhang: Umschlag                                                    */
+  /* Wallet-Karte im Umschlag                                            */
   /* ------------------------------------------------------------------ */
 
-  function letterHtml() {
-    var a = D.anhang, b = a.brief, g = b.gutschein;
-    return chapterHead(a.label, a.titel) +
-      '<div class="env-scene reveal" style="--d:.12s">' +
-        '<div class="env" role="button" tabindex="0" aria-label="Brief öffnen">' +
-          '<span class="env__back"></span>' +
-          '<span class="env__letter"><span class="env__letter-line"></span><span class="env__letter-line"></span><span class="env__letter-line short"></span></span>' +
-          '<span class="env__pocket"><span class="env__label">' + fmt(a.umschlag || '') + '</span></span>' +
-          '<span class="env__flap"></span>' +
+  function walletHtml() {
+    var a = D.anhang, g = a.brief.gutschein;
+    return '<div class="wallet">' +
+      '<div class="envelope" role="button" tabindex="0" aria-label="Umschlag öffnen">' +
+        '<span class="env env--back"></span>' +
+        '<div class="pass">' +
+          '<div class="pass__row"><span class="pass__brand">' + fmt(g.titel) + '</span><span class="pass__value">' + fmt(g.wert) + '</span></div>' +
+          '<div class="pass__code-wrap"><span class="pass__label">Code</span><span class="pass__code" data-code="' + esc(g.code) + '">' + fmt(g.code) + '</span></div>' +
+          '<div class="pass__row pass__row--foot"><span>' + fmt(D.cover.untertitel || '') + '</span><span>' + fmt(D.name || '') + '</span></div>' +
         '</div>' +
-        '<p class="env-hint">' + fmt(a.hinweis) + '</p>' +
+        '<span class="env env--pocket"><span class="env__label">' + fmt(a.umschlag || '') + '</span></span>' +
+        '<span class="env env--flap"></span>' +
       '</div>' +
-      '<article class="letter" data-no-flip hidden>' +
-        '<div class="letter__body">' +
-          '<p class="letter__salute">' + fmt(b.anrede) + '</p>' +
-          paras(b.text) +
-          '<div class="voucher">' +
-            '<div class="voucher__row"><span class="voucher__title">' + fmt(g.titel) + '</span><span class="voucher__value">' + fmt(g.wert) + '</span></div>' +
-            '<div class="voucher__code" data-code="' + esc(g.code) + '">' + fmt(g.code) + '</div>' +
-            '<button type="button" class="voucher__btn"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg><span>' + esc(g.buttonText) + '</span></button>' +
-          '</div>' +
-          (b.gruss ? '<p class="letter__sign">' + fmt(b.gruss) + '</p>' : '') +
-        '</div>' +
-      '</article>';
+      '<p class="wallet__hint">' + fmt(a.hinweis || '') + '</p>' +
+      '<button type="button" class="pill copy"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V6.5A2.5 2.5 0 0 1 7.5 4H15"/></svg><span>' + esc(g.buttonText) + '</span></button>' +
+    '</div>';
   }
 
-  function wireLetter(page) {
-    var env = $('.env', page);
-    var scene = $('.env-scene', page);
-    var paper = $('.env__letter', page);
-    var letter = $('.letter', page);
-    var btn = $('.voucher__btn', page);
+  function wireWallet(sheet) {
+    var wallet = $('.wallet', sheet), env = $('.envelope', sheet), pass = $('.pass', sheet), btn = $('.copy', sheet);
     var opened = false;
 
-    function openEnvelope() {
+    function open() {
       if (opened) return;
       opened = true;
+      haptic(10);
       var t = reduceMotion ? 0.1 : 1;
       env.classList.add('is-open');
-      setTimeout(function () { env.classList.add('is-rising'); }, 450 * t);
-      setTimeout(function () { env.classList.add('is-fading'); }, 1000 * t);
       setTimeout(function () {
-        // FLIP: vom Briefpapier im Umschlag zur großen Karte
-        var from = paper.getBoundingClientRect();
-        scene.hidden = true;
-        letter.hidden = false;
-        var to = letter.getBoundingClientRect();
-        var dy = from.top - to.top, dx = from.left - to.left;
-        letter.style.transformOrigin = '0 0';
-        letter.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(' + (from.width / to.width) + ',' + (from.height / to.height) + ')';
-        letter.getBoundingClientRect();
-        letter.classList.add('is-morphing');
-        letter.style.transform = '';
-        setTimeout(function () {
-          letter.classList.remove('is-morphing');
-          letter.classList.add('is-shown');
-        }, 650 * t);
-      }, 1250 * t);
+        // Karte bis an den oberen Rand der Szene heben
+        var lift = env.offsetTop + pass.offsetTop - 4;
+        pass.style.setProperty('--lift', (-lift) + 'px');
+        wallet.classList.add('is-out');
+      }, 420 * t);
+      setTimeout(function () { wallet.classList.add('is-done'); }, 1250 * t);
     }
-
-    env.addEventListener('click', openEnvelope);
+    env.addEventListener('click', open);
     env.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEnvelope(); }
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
     });
 
     btn.addEventListener('click', function () {
-      var code = $('.voucher__code', page).getAttribute('data-code');
-      var label = btn.querySelector('span');
       var g = D.anhang.brief.gutschein;
-      copyText(code).then(function (ok) {
+      var label = btn.querySelector('span');
+      copyText($('.pass__code', sheet).getAttribute('data-code')).then(function (ok) {
+        haptic(10);
         label.textContent = ok ? g.kopiertText : 'Bitte manuell kopieren';
         btn.classList.toggle('is-done', ok);
-        if (!ok) selectText($('.voucher__code', page));
+        if (!ok) selectText($('.pass__code', sheet));
         setTimeout(function () { label.textContent = g.buttonText; btn.classList.remove('is-done'); }, 2200);
       });
     });
@@ -340,7 +365,6 @@
       return ok;
     }
   }
-
   function selectText(node) {
     var r = document.createRange();
     r.selectNodeContents(node);
@@ -361,172 +385,287 @@
     canvas.height = h * dpr;
     var ctx = canvas.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-    var colors = ['#B4583A', '#1F1F1F', '#D9CFC3', '#E3B7A3', '#8A8580'];
+    var colors = ['#0A84FF', '#FF9F0A', '#30D158', '#FF375F', '#BF5AF2', '#FFD60A'];
     var parts = [];
-    for (var i = 0; i < 60; i++) {
+    for (var i = 0; i < 55; i++) {
       parts.push({
-        x: Math.random() * w,
-        y: -10 - Math.random() * h * 0.5,
-        vy: 1.1 + Math.random() * 1.6,
-        phase: Math.random() * 6.28,
-        sway: 4 + Math.random() * 8,
-        rot: Math.random() * 3.14,
-        vr: (Math.random() - 0.5) * 0.1,
-        size: 4 + Math.random() * 4,
-        round: Math.random() < 0.4,
-        color: colors[i % colors.length]
+        x: Math.random() * w, y: -10 - Math.random() * h * 0.5,
+        vy: 1 + Math.random() * 1.5, phase: Math.random() * 6.28, sway: 3 + Math.random() * 7,
+        rot: Math.random() * 3.14, vr: (Math.random() - 0.5) * 0.12, size: 4 + Math.random() * 3.5,
+        round: Math.random() < 0.35, color: colors[i % colors.length]
       });
     }
-    var start = performance.now(), dur = 3800;
+    var t0 = performance.now(), dur = 3600;
     canvas.style.opacity = '1';
     (function frame(now) {
-      var t = now - start;
+      var t = now - t0;
       ctx.clearRect(0, 0, w, h);
       parts.forEach(function (p) {
-        p.y += p.vy;
-        p.phase += 0.03;
-        p.rot += p.vr;
+        p.y += p.vy; p.phase += 0.03; p.rot += p.vr;
         ctx.save();
         ctx.translate(p.x + Math.sin(p.phase) * p.sway, p.y);
         ctx.rotate(p.rot);
         ctx.fillStyle = p.color;
-        if (p.round) { ctx.beginPath(); ctx.arc(0, 0, p.size / 2.4, 0, 6.28); ctx.fill(); }
+        if (p.round) { ctx.beginPath(); ctx.arc(0, 0, p.size / 2.3, 0, 6.28); ctx.fill(); }
         else ctx.fillRect(-p.size / 2, -p.size / 5, p.size, p.size / 2.5);
         ctx.restore();
       });
       if (t > dur - 800) canvas.style.opacity = '0';
       if (t < dur) requestAnimationFrame(frame); else ctx.clearRect(0, 0, w, h);
-    })(start);
+    })(t0);
   }
 
   /* ------------------------------------------------------------------ */
-  /* Blättern                                                            */
+  /* Buch: Aufbau, Größe, Öffnen, Blättern                               */
   /* ------------------------------------------------------------------ */
 
-  var current = 0;
-  var track, deck, bar;
+  var book, cover, stage, isOpen = false, current = 0, animating = false;
+  var TURN_MS = 720;
 
   function buildBook() {
     buildPages();
-    track = $('#track');
-    deck = $('#deck');
-    bar = $('#progress span');
-    screens.forEach(function (s) { track.appendChild(s); });
-    wireLetter(screens[special.anhang]);
-    $('.restart', track).addEventListener('click', function () { go(0); });
+    stage = $('#stage');
+    book = $('#book');
+    book.innerHTML =
+      '<span class="book__board" aria-hidden="true"></span>' +
+      '<span class="book__edges" aria-hidden="true"></span>' +
+      '<div class="book__pages"></div>' +
+      '<div class="cover" role="button" tabindex="0" aria-label="Buch öffnen">' + coverHtml() + '</div>';
+    cover = $('.cover', book);
+    var holder = $('.book__pages', book);
+    // Umgekehrte Reihenfolge: In 3D-Kontexten (Safari) zählt die DOM-Reihenfolge statt z-index,
+    // das aktuelle Blatt muss also nach den folgenden Blättern kommen.
+    sheets.slice().reverse().forEach(function (s) { holder.appendChild(s.el); });
 
-    deck.hidden = false;
-    $('#progress').hidden = false;
+    wireWallet(sheets[special.wallet].el);
+    $('.restart', book).addEventListener('click', restart);
+
+    stage.hidden = false;
+    layout();
+    placeSheets();
     setupGestures();
-    go(0, true);
+    window.addEventListener('resize', debounce(layout, 150));
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll);
   }
 
-  function go(i, instant) {
-    i = Math.max(0, Math.min(screens.length - 1, i));
-    var forward = i > current;
-    current = i;
-    track.classList.toggle('no-anim', !!instant);
-    track.style.transform = 'translate3d(' + (-i * 100) + '%,0,0)';
-    screens.forEach(function (s, n) {
-      var active = n === i;
-      s.classList.toggle('is-active', active);
-      if (active) s.removeAttribute('inert'); else s.setAttribute('inert', '');
-      s.setAttribute('aria-hidden', active ? 'false' : 'true');
-    });
-    if (forward || instant) screens[i].scrollTop = 0;
-    bar.style.transform = 'scaleX(' + ((i + 1) / screens.length) + ')';
-    document.body.classList.toggle('on-dark', screens[i].classList.contains('screen--back'));
+  function layout() {
+    var vw = window.innerWidth, vh = window.innerHeight;
+    var reserve = 116;                       // Navigationsleiste + Abstände
+    var w = Math.min(vw - 56, (vh - reserve - 40) / 1.45, 420);
+    w = Math.max(230, Math.floor(w));
+    var root = document.documentElement.style;
+    root.setProperty('--bw', w + 'px');
+    root.setProperty('--bh', Math.floor(w * 1.45) + 'px');
+    fitAll();
+  }
 
-    if (i === special.epilog) {
-      var cv = $('.confetti', screens[i]);
-      setTimeout(function () { if (current === special.epilog) confetti(cv); }, 350);
+  // Texte an die Seitengröße anpassen (notfalls scrollt die Seite)
+  function fitAll() {
+    sheets.forEach(function (s) {
+      var body = $('.pg__body', s.el);
+      if (!body || s.el.querySelector('.pg--wallet')) return;
+      var f = 1;
+      body.style.setProperty('--fit', '1');
+      while (body.scrollHeight > body.clientHeight + 1 && f > 0.74) {
+        f -= 0.03;
+        body.style.setProperty('--fit', f.toFixed(3));
+      }
+      body.classList.toggle('is-scroll', body.scrollHeight > body.clientHeight + 1);
+    });
+  }
+
+  // Grundstellung aller Blätter: umgeblättert (links, unsichtbar) oder flach
+  function placeSheets() {
+    var n = sheets.length;
+    sheets.forEach(function (s, i) {
+      var turned = i < current;
+      s.el.classList.remove('is-turning');
+      s.el.style.transition = 'none';
+      s.el.style.setProperty('--p', turned ? '1' : '0');
+      s.el.style.zIndex = turned ? i : n - i;
+      s.el.style.visibility = (!turned && i <= current + 1) ? 'visible' : 'hidden';
+      if (i === current) s.el.removeAttribute('inert'); else s.el.setAttribute('inert', '');
+    });
+    void book.offsetWidth;
+    sheets.forEach(function (s) { s.el.style.transition = ''; });
+    updateBar();
+  }
+
+  function updateBar() {
+    $('#bar-label').textContent = sheets[current] ? sheets[current].label : '';
+    $('#bar-fill').style.transform = 'scaleX(' + ((current + 1) / sheets.length) + ')';
+    $('#next').disabled = current >= sheets.length - 1;
+  }
+
+  function onArrive() {
+    if (current === special.epilog) {
+      var cv = $('.confetti', sheets[current].el);
+      setTimeout(function () { if (current === special.epilog) confetti(cv); }, 200);
     }
   }
 
-  function next() { if (current < screens.length - 1) go(current + 1); }
-  function prev() { if (current > 0) go(current - 1); }
+  function openBook() {
+    if (isOpen || animating) return;
+    animating = true;
+    isOpen = true;
+    haptic(10);
+    stage.classList.add('is-open');
+    cover.setAttribute('aria-label', 'Buch');
+    var bar = $('#bar');
+    bar.hidden = false;
+    requestAnimationFrame(function () { requestAnimationFrame(function () { bar.classList.add('is-shown'); }); });
+    setTimeout(function () {
+      cover.classList.add('is-gone');
+      animating = false;
+    }, reduceMotion ? 50 : 1150);
+  }
 
+  function closeBook() {
+    if (!isOpen || animating) return;
+    animating = true;
+    isOpen = false;
+    cover.classList.remove('is-gone');
+    void cover.offsetWidth;
+    stage.classList.remove('is-open');
+    cover.setAttribute('aria-label', 'Buch öffnen');
+    $('#bar').classList.remove('is-shown');
+    setTimeout(function () { $('#bar').hidden = true; animating = false; }, reduceMotion ? 50 : 1100);
+  }
+
+  function restart() {
+    current = 0;
+    placeSheets();
+    closeBook();
+  }
+
+  function setTurn(s, p, instant) {
+    if (instant) s.el.style.transition = 'none';
+    s.el.style.setProperty('--p', p.toFixed(4));
+  }
+
+  function prepareTurn(idx) {
+    for (var i = idx - 1; i <= idx + 1; i++) if (sheets[i] && i >= current - 1) sheets[i].el.style.visibility = 'visible';
+    sheets[idx].el.style.zIndex = 500;
+    sheets[idx].el.classList.add('is-turning');
+  }
+
+  // Blatt drehen: dir 1 = weiter, -1 = zurück; p0 = Startfortschritt (beim Wischen)
+  function turn(dir, p0) {
+    if (animating) return;
+    var idx = dir > 0 ? current : current - 1;
+    var s = sheets[idx];
+    if (!s) return;
+    animating = true;
+    haptic(6);
+    var from = p0 == null ? (dir > 0 ? 0 : 1) : p0;
+    var to = dir > 0 ? 1 : 0;
+    prepareTurn(idx);
+    setTurn(s, from, true);
+    void s.el.offsetWidth;
+    var ms = reduceMotion ? 1 : Math.max(280, TURN_MS * Math.abs(to - from));
+    s.el.style.transition = '--p ' + ms + 'ms var(--ease-page)';
+    setTurn(s, to);
+    setTimeout(function () {
+      current += dir;
+      animating = false;
+      placeSheets();
+      onArrive();
+    }, ms + 30);
+  }
+
+  function next() {
+    if (!isOpen) { openBook(); return; }
+    if (current < sheets.length - 1) turn(1);
+  }
+  function prev() {
+    if (!isOpen) return;
+    if (current > 0) turn(-1); else closeBook();
+  }
+
+  /* Wischen und Tippen */
   function setupGestures() {
-    var start = null, dragging = false, width = 1;
+    var st = null;
 
-    function isInteractive(t) {
-      return t.closest && t.closest('button, a, input, textarea, .env, [data-no-flip], .voucher__code');
+    function interactive(t) {
+      return t.closest && t.closest('button, a, input, .envelope, .pass, .bar');
     }
 
-    deck.addEventListener('pointerdown', function (e) {
+    stage.addEventListener('pointerdown', function (e) {
       if (e.pointerType === 'mouse' && e.button !== 0) return;
-      start = { x: e.clientX, y: e.clientY, t: performance.now(), interactive: isInteractive(e.target) };
-      dragging = false;
-      width = deck.clientWidth;
+      if (animating) return;
+      st = { x: e.clientX, y: e.clientY, t: performance.now(), inter: interactive(e.target), drag: 0, idx: -1, p: 0 };
     });
 
-    deck.addEventListener('pointermove', function (e) {
-      if (!start) return;
-      var dx = e.clientX - start.x, dy = e.clientY - start.y;
-      if (!dragging) {
+    stage.addEventListener('pointermove', function (e) {
+      if (!st || !isOpen || animating) return;
+      var dx = e.clientX - st.x, dy = e.clientY - st.y;
+      if (!st.drag) {
         if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.2) {
-          dragging = true;
-          track.classList.add('is-dragging');
-          try { deck.setPointerCapture(e.pointerId); } catch (err) { /* egal */ }
+          st.drag = dx < 0 ? 1 : -1;
+          st.idx = st.drag > 0 ? current : current - 1;
+          if (!sheets[st.idx] || (st.drag > 0 && current >= sheets.length - 1)) { st = null; return; }
+          prepareTurn(st.idx);
+          try { stage.setPointerCapture(e.pointerId); } catch (err) { /* egal */ }
         } else return;
       }
-      var atEdge = (current === 0 && dx > 0) || (current === screens.length - 1 && dx < 0);
-      var off = atEdge ? dx * 0.3 : dx;
-      track.style.transform = 'translate3d(calc(' + (-current * 100) + '% + ' + off + 'px),0,0)';
+      var w = book.clientWidth * 0.95;
+      var p = st.drag > 0 ? -dx / w : 1 - dx / w;
+      st.p = Math.min(1, Math.max(0, p));
+      setTurn(sheets[st.idx], st.p, true);
     });
 
     function end(e, cancelled) {
-      if (!start) return;
-      var dx = e.clientX - start.x, dy = e.clientY - start.y;
-      var dt = performance.now() - start.t;
-      var s = start;
-      start = null;
-      track.classList.remove('is-dragging');
-
-      if (dragging) {
-        dragging = false;
-        var fast = Math.abs(dx) / dt > 0.45;
-        if (!cancelled && (Math.abs(dx) > width * 0.22 || fast)) {
-          if (dx < 0) next(); else prev();
-          if ((dx < 0 && current === screens.length - 1) || (dx > 0 && current === 0)) go(current);
-        } else go(current);
+      if (!st) return;
+      var s = st;
+      st = null;
+      var dx = e.clientX - s.x, dy = e.clientY - s.y, dt = performance.now() - s.t;
+      if (s.drag) {
+        var fast = Math.abs(dx) / dt > 0.5;
+        var done = !cancelled && (s.drag > 0 ? (s.p > 0.3 || (fast && dx < 0)) : (s.p < 0.7 || (fast && dx > 0)));
+        if (done) { turn(s.drag, s.p); return; }
+        animating = true;
+        var sheet = sheets[s.idx];
+        sheet.el.style.transition = '--p 280ms var(--ease-page)';
+        setTurn(sheet, s.drag > 0 ? 0 : 1);
+        setTimeout(function () { animating = false; placeSheets(); }, 300);
         return;
       }
-      // Tippen: linkes Drittel zurück, sonst weiter
-      if (!cancelled && !s.interactive && Math.abs(dx) < 10 && Math.abs(dy) < 10 && dt < 500) {
-        var sel = window.getSelection && String(window.getSelection());
-        if (sel) return;
-        if (e.clientX < width * 0.3) prev(); else next();
+      if (cancelled || s.inter || Math.abs(dx) > 10 || Math.abs(dy) > 10 || dt > 600) return;
+      if (String(window.getSelection ? window.getSelection() : '')) return;
+      if (!isOpen) {
+        if (e.target.closest('.book')) openBook();
+        return;
       }
+      var r = book.getBoundingClientRect();
+      if (e.clientX < r.left + r.width * 0.3) prev(); else next();
     }
 
-    deck.addEventListener('pointerup', function (e) { end(e, false); });
-    deck.addEventListener('pointercancel', function (e) { end(e, true); });
+    stage.addEventListener('pointerup', function (e) { end(e, false); });
+    stage.addEventListener('pointercancel', function (e) { end(e, true); });
 
+    cover.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openBook(); }
+    });
+    $('#prev').addEventListener('click', prev);
+    $('#next').addEventListener('click', next);
     document.addEventListener('keydown', function (e) {
-      if (e.target.closest && e.target.closest('input, textarea')) return;
+      if (e.target.closest && e.target.closest('input')) return;
       if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); next(); }
       if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
     });
   }
 
   /* ------------------------------------------------------------------ */
-  /* Musik (verschlüsselt, wird erst beim ersten Antippen geladen)       */
+  /* Musik (verschlüsselt, wird im Hintergrund entschlüsselt)            */
   /* ------------------------------------------------------------------ */
 
   function setupMusic() {
-    var btn = $('#music');
-    var audio = null;
-
+    var btn = $('#music'), audio = null;
     function setState(on) {
       btn.setAttribute('aria-pressed', on ? 'true' : 'false');
       btn.setAttribute('aria-label', on ? 'Musik aus' : 'Musik an');
       btn.classList.toggle('is-on', on);
     }
-
-    // Im Hintergrund laden und entschlüsseln, damit play() direkt beim Antippen
-    // passiert (iOS erlaubt Musik nur unmittelbar nach einer Berührung).
     fetch('musik.enc').then(function (r) {
       if (!r.ok) throw new Error('404');
       return r.arrayBuffer();
@@ -547,12 +686,9 @@
         var p = audio.play();
         setState(true);
         if (p && p.catch) p.catch(function () { setState(false); });
-      } else {
-        audio.pause();
-        setState(false);
-      }
+      } else { audio.pause(); setState(false); }
     });
   }
 
-  setupGate();
+  setupLock();
 })();
