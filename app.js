@@ -25,15 +25,28 @@
   }
   function paras(list, leadCls) {
     return (list || []).map(function (t, i) {
-      if (t === '#chat') return chatHtml();
       return '<p' + (leadCls && i === 0 ? ' class="' + leadCls + '"' : '') + '>' + fmt(t) + '</p>';
     }).join('');
   }
-  function chatHtml() {
-    var chat = (D.cover && D.cover.chat) || [];
-    if (!chat.length) return '';
-    return '<div class="imsgs">' + chat.map(function (m) {
-      return '<div class="imsg imsg--' + (m.von === 'ich' ? 'me' : 'them') + '">' + fmt(m.text) + '</div>';
+
+  // Erster Chat im TikTok-Stil. Das Profilbild steht nur an der letzten Nachricht einer Gruppe.
+  function tiktokChatHtml(w) {
+    var chat = w.chat || [], av = w.avatare || {};
+    return '<div class="tchat">' + chat.map(function (m, i) {
+      if (m.typ === 'zeit' || m.typ === 'hinweis') {
+        return '<p class="tchat__sys' + (m.rechts ? ' tchat__sys--right' : '') + '">' + fmt(m.text) + '</p>';
+      }
+      if (m.typ === 'story') return '<div class="tchat__story">' + fmt(m.text) + '</div>';
+      var side = m.von === 'ich' ? 'me' : 'them';
+      var nx = chat[i + 1];
+      var last = !nx || nx.typ || nx.von !== m.von;
+      var src = IMAGES[av[m.von]];
+      return '<div class="tchat__row tchat__row--' + side + (m.reaktion ? ' tchat__row--react' : '') + '">' +
+        '<span class="tchat__av">' + (last && src ? '<img src="' + src + '" alt="" draggable="false">' : '') + '</span>' +
+        '<div class="tchat__msg">' + fmt(m.text) +
+          (m.reaktion ? '<span class="tchat__react">' + esc(m.reaktion) + '</span>' : '') +
+        '</div>' +
+      '</div>';
     }).join('') + '</div>';
   }
   function haptic(ms) {
@@ -105,7 +118,7 @@
     sheets = [];
     special = {};
 
-    page('Widmung', '<div class="dedication">' + paras(D.widmung.text) + '</div>', 'pg--center', { head: false });
+    page('Wie alles begann', tiktokChatHtml(D.widmung), 'pg--chat', { head: D.widmung.titel || false });
 
     var pr = D.prolog;
     (pr.seiten || []).forEach(function (s, i) {
@@ -311,6 +324,7 @@
     setupGestures();
     window.addEventListener('resize', debounce(layout, 150));
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll);
+    window.addEventListener('load', fitAll);
   }
 
   function layout() {
@@ -326,17 +340,19 @@
 
   // Texte an die Seitengröße anpassen (notfalls scrollt die Seite)
   function fitAll() {
+    if (book) book.classList.add('is-fitting');
     sheets.forEach(function (s) {
       var body = $('.pg__body', s.el);
       if (!body || s.el.querySelector('.pg--wallet')) return;
-      var f = 1;
+      var f = 1, min = s.el.querySelector('.tchat') ? 0.5 : 0.74;   // der Chat darf nie scrollen
       body.style.setProperty('--fit', '1');
-      while (body.scrollHeight > body.clientHeight + 1 && f > 0.74) {
+      while (body.scrollHeight > body.clientHeight + 1 && f > min) {
         f -= 0.03;
         body.style.setProperty('--fit', f.toFixed(3));
       }
       body.classList.toggle('is-scroll', body.scrollHeight > body.clientHeight + 1);
     });
+    if (book) { void book.offsetWidth; book.classList.remove('is-fitting'); }
   }
 
   // Grundstellung aller Blätter: umgeblättert (links, unsichtbar) oder flach

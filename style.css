@@ -18,9 +18,6 @@
   --edge: #DCDCE1;
   --board: #E3E3E8;
   --cover: #FFFFFF;
-  --msg-me: #0A84FF;
-  --msg-them: #E9E9EB;
-  --msg-them-text: #000000;
   --fill: rgba(120, 120, 128, .14);
   --glass: rgba(255, 255, 255, .72);
   --glass-line: rgba(0, 0, 0, .07);
@@ -55,8 +52,6 @@
     --edge: #3A3A3C;
     --board: #2C2C2E;
     --cover: #1C1C1E;
-    --msg-them: #3B3B3D;
-    --msg-them-text: #FFFFFF;
     --fill: rgba(118, 118, 128, .26);
     --glass: rgba(36, 36, 38, .68);
     --glass-line: rgba(255, 255, 255, .09);
@@ -70,6 +65,8 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
+/* Während fitAll() misst: keine Übergänge, sonst sind die gemessenen Höhen veraltet */
+.is-fitting, .is-fitting * { transition: none !important; }
 
 html, body {
   height: 100%;
@@ -322,38 +319,6 @@ mark.ph {
   text-wrap: balance;
 }
 
-/* iMessage */
-.imsgs {
-  display: flex;
-  flex-direction: column;
-  gap: .4em;
-  margin: .1em 0 .9em;
-  padding: 0 .55em;
-  font-size: .8em;
-}
-.imsg {
-  position: relative;
-  max-width: 80%;
-  padding: .46em .82em .5em;
-  border-radius: 1.15em;
-  line-height: 1.3;
-  font-family: var(--sans);
-  overflow-wrap: anywhere;
-}
-.imsg::before, .imsg::after {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  height: 1.2em;
-}
-.imsg--me { align-self: flex-end; background: var(--msg-me); color: #fff; }
-.imsg--me::before { right: -.42em; width: 1.2em; background: var(--msg-me); border-bottom-left-radius: 1em .85em; }
-.imsg--me::after { right: -.62em; width: .62em; background: var(--page); border-bottom-left-radius: .62em; }
-.imsg--them { align-self: flex-start; background: var(--msg-them); color: var(--msg-them-text); }
-.imsg--them::before { left: -.42em; width: 1.2em; background: var(--msg-them); border-bottom-right-radius: 1em .85em; }
-.imsg--them::after { left: -.62em; width: .62em; background: var(--page); border-bottom-right-radius: .62em; }
-.imsg--me mark.ph { background: rgba(255, 255, 255, .22); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .6); }
-
 .open-hint {
   margin: 34px 0 0;
   font-size: .85rem;
@@ -442,15 +407,75 @@ mark.ph {
 .prose p.lead { font: 400 1.07em/1.5 var(--serif); letter-spacing: 0; }
 .prose em { font-family: var(--serif); font-style: italic; }
 
-.pg--center .pg__body { display: flex; align-items: center; justify-content: center; }
-.dedication { text-align: center; padding-bottom: 10%; }
-.dedication p {
-  margin: 0 auto .7em;
-  max-width: 15em;
-  font: italic 400 1.18em/1.45 var(--serif);
-  text-wrap: balance;
+/* Erste Seite: TikTok-Chat */
+.pg--chat { padding-top: 7%; }
+.pg--chat .pg__head { margin-bottom: .7em; }
+.pg--chat .pg__body { display: flex; flex-direction: column; }
+.tchat {
+  --tk-me: linear-gradient(180deg, #3A6BFF 0%, #2B5CFF 100%);
+  --tk-them: #F1F1F2;
+  --tk-them-text: #161823;
+  --tk-sys: #8A8B91;
+  --tk-story: #F1F1F2;
+  display: flex;
+  flex-direction: column;
+  gap: .3em;
+  margin: auto 0;                     /* mittig, ohne oben abgeschnittenen Überlauf */
+  font: 400 .8em/1.3 -apple-system, BlinkMacSystemFont, "SF Pro Text", var(--sans);
+  letter-spacing: -.01em;
 }
-.dedication p:last-child { color: var(--muted); font-size: 1em; }
+.tchat__sys {
+  margin: .45em 0 .1em;
+  padding: 0 1.2em;
+  text-align: center;
+  font-size: .72em;
+  line-height: 1.35;
+  color: var(--tk-sys);
+}
+.tchat__sys--right { margin-top: 0; padding: 0 .2em 0 0; text-align: right; }
+.tchat__story {
+  align-self: flex-end;
+  margin: 0 0 .15em;
+  padding: .55em .8em;
+  border-radius: .55em;
+  background: var(--tk-story);
+  color: var(--tk-sys);
+  font-size: .82em;
+}
+.tchat__row { display: flex; align-items: flex-end; gap: .4em; }
+.tchat__row--me { flex-direction: row-reverse; }
+.tchat__av {
+  flex: none;
+  width: 1.9em;
+  height: 1.9em;
+  border-radius: 50%;
+  overflow: hidden;
+}
+.tchat__av img { display: block; width: 100%; height: 100%; object-fit: cover; -webkit-user-drag: none; }
+.tchat__msg {
+  position: relative;
+  max-width: 78%;
+  padding: .5em .8em .55em;
+  border-radius: 1.15em;
+  overflow-wrap: anywhere;
+}
+.tchat__row--me .tchat__msg { background: var(--tk-me); color: #fff; }
+.tchat__row--them .tchat__msg { background: var(--tk-them); color: var(--tk-them-text); }
+.tchat__row--react { padding-bottom: 1.15em; }
+.tchat__react {
+  position: absolute;
+  left: .2em;
+  bottom: -1.15em;
+  display: grid;
+  place-items: center;
+  width: 1.75em;
+  height: 1.75em;
+  border-radius: 50%;
+  background: var(--page);
+  box-shadow: 0 .5px 2px rgba(0, 0, 0, .18);
+  font-size: .85em;
+  line-height: 1;
+}
 
 .signature { margin: .6em 0 0; text-align: right; font: italic 400 1.15em/1.2 var(--serif); }
 .letter__salute { font: italic 400 1.12em/1.3 var(--serif) !important; }
@@ -712,6 +737,8 @@ mark.ph {
   .cover__front::after { opacity: .1; }
   .cover__front::before { background: linear-gradient(90deg, rgba(0, 0, 0, .45), rgba(0, 0, 0, .12) 55%, rgba(255, 255, 255, .06) 85%, rgba(0, 0, 0, 0)); }
   .book__board::before { background: linear-gradient(90deg, rgba(0, 0, 0, .4), rgba(0, 0, 0, .1) 70%, rgba(255, 255, 255, .05)); }
+  .tchat { --tk-them: #2F2F33; --tk-them-text: #F5F5F7; --tk-sys: #8E8E93; --tk-story: #2A2A2E; }
+  .tchat__react { background: #3A3A3C; }
 }
 
 /* =====================================================================
