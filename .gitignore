@@ -1,0 +1,11 @@
+# Private Originale: niemals hochladen, nur verschlüsselt über website/inhalt.enc.js
+inhalt/
+images/
+*.jpg
+*.jpeg
+*.png
+*.webp
+*.heic
+*.gif
+*.mp3
+tools/node_modules/

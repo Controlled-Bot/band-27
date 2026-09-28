@@ -29,6 +29,7 @@
   --env-front: #F2F2F5;
   --env-flap: #E0E0E6;
   --green: #34C759;
+  --veil: 255, 255, 255;             /* Schleier über dem Coverbild (RGB) */
 
   --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -65,6 +66,7 @@
     --env-front: #3A3A3C;
     --env-flap: #333336;
     --green: #30D158;
+    --veil: 28, 28, 30;
   }
 }
 
@@ -367,6 +369,7 @@ mark.ph {
 }
 .cover__front::before {               /* Rücken mit Falz */
   content: "";
+  z-index: 3;
   position: absolute;
   top: 0; bottom: 0; left: 0;
   width: 18px;
@@ -374,6 +377,7 @@ mark.ph {
 }
 .cover__front::after {                /* ganz feiner Glanz */
   content: "";
+  z-index: 3;
   position: absolute;
   inset: 0;
   background: linear-gradient(115deg, rgba(255, 255, 255, 0) 40%, rgba(255, 255, 255, .35) 48%, rgba(255, 255, 255, 0) 56%);
@@ -384,10 +388,37 @@ mark.ph {
 
 .cover__content {
   position: absolute;
+  z-index: 2;
   inset: 11% 10% 8% 15%;
   display: flex;
   flex-direction: column;
 }
+
+/* Coverbild: verblasst, mit hellem Verlauf, der nach unten dichter wird */
+.cover__img {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: .82;
+  filter: saturate(.62) contrast(.94) brightness(1.04);
+  -webkit-user-drag: none;
+}
+.cover__veil {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  background: linear-gradient(180deg,
+    rgba(var(--veil), .30) 0%,
+    rgba(var(--veil), .42) 38%,
+    rgba(var(--veil), .78) 66%,
+    rgba(var(--veil), .94) 86%,
+    rgba(var(--veil), .97) 100%);
+}
+.cover__front.has-image .cover__content { justify-content: flex-end; bottom: 9%; }
+.cover__front.has-image .cover__band { color: var(--text); opacity: .7; }
 .cover__band {
   margin: 0;
   font: 600 .66em/1 var(--sans);
@@ -404,12 +435,12 @@ mark.ph {
 
 /* iMessage */
 .imsgs {
-  margin-top: auto;
   display: flex;
   flex-direction: column;
-  gap: .42em;
-  font-size: .78em;
-  padding: 0 .5em;
+  gap: .4em;
+  margin: .1em 0 .9em;
+  padding: 0 .55em;
+  font-size: .8em;
 }
 .imsg {
   position: relative;
@@ -428,10 +459,10 @@ mark.ph {
 }
 .imsg--me { align-self: flex-end; background: var(--msg-me); color: #fff; }
 .imsg--me::before { right: -.42em; width: 1.2em; background: var(--msg-me); border-bottom-left-radius: 1em .85em; }
-.imsg--me::after { right: -.62em; width: .62em; background: var(--cover); border-bottom-left-radius: .62em; }
+.imsg--me::after { right: -.62em; width: .62em; background: var(--page); border-bottom-left-radius: .62em; }
 .imsg--them { align-self: flex-start; background: var(--msg-them); color: var(--msg-them-text); }
 .imsg--them::before { left: -.42em; width: 1.2em; background: var(--msg-them); border-bottom-right-radius: 1em .85em; }
-.imsg--them::after { left: -.62em; width: .62em; background: var(--cover); border-bottom-right-radius: .62em; }
+.imsg--them::after { left: -.62em; width: .62em; background: var(--page); border-bottom-right-radius: .62em; }
 .imsg--me mark.ph { background: rgba(255, 255, 255, .22); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .6); }
 
 .open-hint {

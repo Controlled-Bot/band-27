@@ -27,8 +27,16 @@
   }
   function paras(list, leadCls) {
     return (list || []).map(function (t, i) {
+      if (t === '#chat') return chatHtml();
       return '<p' + (leadCls && i === 0 ? ' class="' + leadCls + '"' : '') + '>' + fmt(t) + '</p>';
     }).join('');
+  }
+  function chatHtml() {
+    var chat = (D.cover && D.cover.chat) || [];
+    if (!chat.length) return '';
+    return '<div class="imsgs">' + chat.map(function (m) {
+      return '<div class="imsg imsg--' + (m.von === 'ich' ? 'me' : 'them') + '">' + fmt(m.text) + '</div>';
+    }).join('') + '</div>';
   }
   function fromB64(s) {
     var bin = atob(s), out = new Uint8Array(bin.length);
@@ -223,14 +231,13 @@
 
   function coverHtml() {
     var c = D.cover;
-    var chat = (c.chat || []).map(function (m) {
-      return '<div class="imsg imsg--' + (m.von === 'ich' ? 'me' : 'them') + '">' + fmt(m.text) + '</div>';
-    }).join('');
-    return '<div class="face face--front cover__front">' +
+    var img = c.bild && IMAGES[c.bild];
+    return '<div class="face face--front cover__front' + (img ? ' has-image' : '') + '">' +
+        (img ? '<img class="cover__img" src="' + img + '" alt="" draggable="false" style="object-position:' + esc(c.fokus || '50% 30%') + '">' +
+               '<span class="cover__veil" aria-hidden="true"></span>' : '') +
         '<div class="cover__content">' +
           '<p class="cover__band">' + fmt(c.untertitel) + '</p>' +
           '<h1 class="cover__title">' + fmt(c.titel) + '</h1>' +
-          (chat ? '<div class="imsgs">' + chat + '</div>' : '') +
         '</div>' +
       '</div>' +
       '<div class="face face--back cover__inside"></div>';
@@ -254,7 +261,7 @@
       var src = IMAGES[f.bild];
       page(k.label,
         '<figure class="photo">' +
-          (src ? '<img class="photo__img" src="' + src + '" alt="" draggable="false">'
+          (src ? '<img class="photo__img" src="' + src + '" alt="" draggable="false"' + (f.fokus ? ' style="object-position:' + esc(f.fokus) + '"' : '') + '>'
                : '<div class="photo__img photo__img--missing"><span>Foto folgt<small>' + esc(f.bild) + '</small></span></div>') +
           '<figcaption><span class="photo__no">Abb. ' + (i + 1) + '</span>' + fmt(f.text) + '</figcaption>' +
         '</figure>', 'pg--photo', { head: k.label + ' · ' + k.titel });
