@@ -230,11 +230,12 @@
         { head: false, accent: accentHtml(acc('collage', 0), 'tr', -9) });
     }
 
+    if (D.duell) {
+      special.duel = sheets.length;
+      page(D.duell.label, duelHtml(D.duell), 'pg--duel', { head: false, accent: accentHtml(acc('duell', 0), 'tr', 8) });
+    }
+
     var a = D.anhang, b = a.brief;
-    page(a.label, opener(a.label, a.titel) +
-      '<div class="letter"><p class="letter__salute">' + fmt(b.anrede) + '</p>' + paras(b.text) +
-      (b.gruss ? '<p class="signature">' + fmt(b.gruss) + '</p>' : '') + '</div>', '',
-      { head: false, accent: accentHtml(acc('brief', 0), 'tr', 8) });
 
     special.wallet = sheets.length;
     page(a.label, walletHtml(), 'pg--wallet',
@@ -306,6 +307,91 @@
         btn.classList.toggle('is-done', ok);
         if (!ok) selectText($('.pass__code', sheet));
         setTimeout(function () { label.textContent = g.buttonText; btn.classList.remove('is-done'); }, 2200);
+      });
+    });
+  }
+
+  /* Eigene Illustrationen für die Duell-Karten (keine Fotos, keine Logos) */
+  var DUEL_ICONS = {
+    uno:
+      '<rect width="100" height="100" rx="14" fill="#FFF3E6"/>' +
+      '<g transform="translate(50 84)">' +
+        [['#0A84FF', -30, '7'], ['#30D158', -10, '3'], ['#FFD60A', 10, '9'], ['#FF453A', 30, '5']].map(function (c) {
+          return '<g transform="rotate(' + c[1] + ')"><rect x="-15" y="-66" width="30" height="46" rx="5" fill="' + c[0] + '" stroke="#fff" stroke-width="2.5"/>' +
+            '<ellipse cx="0" cy="-43" rx="9" ry="14" transform="rotate(28 0 -43)" fill="#fff"/>' +
+            '<text x="0" y="-37" text-anchor="middle" font-family="-apple-system,Segoe UI,Arial,sans-serif" font-weight="800" font-size="17" fill="' + c[0] + '">' + c[2] + '</text></g>';
+        }).join('') +
+      '</g>',
+    laufen:
+      '<rect width="100" height="100" rx="14" fill="#E8F3FF"/>' +
+      '<path d="M8 50h16M5 58h14M10 66h12" stroke="#9CC8FF" stroke-width="3" stroke-linecap="round"/>' +
+      '<path d="M26 64c0-10 5-16 12-17l10-1c4 0 6-8 13-9h3c6 0 8 8 15 11l8 4c6 3 6 12-1 12H30c-2 0-4-1-4-3z" fill="#FF6B3D"/>' +
+      '<path d="M50 46l4 8M56 43l4 8M62 41l3 8" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>' +
+      '<path d="M40 56c10 2 22 2 34 0" stroke="#FFD2C2" stroke-width="3" fill="none" stroke-linecap="round"/>' +
+      '<rect x="24" y="63" width="70" height="9" rx="4.5" fill="#fff" stroke="#D1D1D6" stroke-width="1.5"/>',
+    seil:
+      '<rect width="100" height="100" rx="14" fill="#F4ECFF"/>' +
+      '<path d="M26 34C22 70 34 88 50 88S78 70 74 34" fill="none" stroke="#BF5AF2" stroke-width="4" stroke-linecap="round"/>' +
+      '<rect x="20" y="12" width="11" height="26" rx="5.5" transform="rotate(-10 25 25)" fill="#FF9F0A"/>' +
+      '<rect x="69" y="12" width="11" height="26" rx="5.5" transform="rotate(10 75 25)" fill="#FF9F0A"/>' +
+      '<circle cx="25" cy="14" r="2.2" fill="#fff" opacity=".7"/><circle cx="75" cy="14" r="2.2" fill="#fff" opacity=".7"/>',
+    schiffe: (function () {
+      var s = '<rect width="100" height="100" rx="14" fill="#E3F1FF"/>';
+      for (var r = 0; r < 5; r++) for (var c = 0; c < 5; c++) s += '<rect x="' + (13 + c * 15.4) + '" y="' + (13 + r * 15.4) + '" width="13" height="13" rx="3" fill="#B9DBFF"/>';
+      s += '<rect x="14" y="29.4" width="42.2" height="11" rx="5.5" fill="#636366"/>' +
+           '<rect x="75.6" y="44.8" width="11" height="26.4" rx="5.5" fill="#636366"/>' +
+           '<path d="M45 58l9 9M54 58l-9 9" stroke="#FF453A" stroke-width="3.5" stroke-linecap="round"/>' +
+           '<circle cx="34.9" cy="80.1" r="2.4" fill="#fff"/><circle cx="65.7" cy="18.9" r="2.4" fill="#fff"/><circle cx="19.5" cy="64.8" r="2.4" fill="#fff"/>';
+      return s;
+    })(),
+    memory: (function () {
+      var s = '<rect width="100" height="100" rx="14" fill="#FFF0F3"/>';
+      for (var r = 0; r < 2; r++) for (var c = 0; c < 3; c++) {
+        var x = 12 + c * 27, y = 18 + r * 34, open = (r === 0 && c === 1) || (r === 1 && c === 2);
+        s += open
+          ? '<rect x="' + x + '" y="' + y + '" width="22" height="29" rx="4" fill="#fff" stroke="#FFD1DC" stroke-width="1.5"/>' +
+            '<path d="M' + (x + 11) + ' ' + (y + 21) + 'c-7-5-9-8-6-11 2-2 5-1 6 1 1-2 4-3 6-1 3 3 1 6-6 11z" fill="#FF375F"/>'
+          : '<rect x="' + x + '" y="' + y + '" width="22" height="29" rx="4" fill="#5E5CE6"/>' +
+            '<rect x="' + (x + 4) + '" y="' + (y + 4) + '" width="14" height="21" rx="2.5" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="1.5"/>';
+      }
+      return s;
+    })(),
+    vier: (function () {
+      var s = '<rect width="100" height="100" rx="14" fill="#E8F1FF"/><rect x="11" y="16" width="78" height="66" rx="9" fill="#0A84FF"/>' +
+              '<rect x="7" y="80" width="86" height="7" rx="3.5" fill="#0060D0"/>';
+      var chips = { '0,3': 'y', '1,2': 'y', '2,1': 'y', '3,0': 'y', '0,2': 'r', '1,3': 'r', '2,3': 'r', '0,1': 'r', '4,3': 'r', '3,3': 'y', '2,2': 'r' };
+      for (var r = 0; r < 4; r++) for (var c = 0; c < 5; c++) {
+        var k = chips[c + ',' + r];
+        s += '<circle cx="' + (22 + c * 14) + '" cy="' + (27 + r * 15) + '" r="5.6" fill="' + (k === 'y' ? '#FFD60A' : k === 'r' ? '#FF453A' : '#fff') + '"/>';
+      }
+      return s;
+    })()
+  };
+
+  function duelHtml(d) {
+    return '<h2 class="title duel__title">' + fmt(d.titel) + '</h2>' +
+      '<p class="duel__intro">' + fmt(d.intro) + '</p>' +
+      '<div class="duel">' + (d.disziplinen || []).map(function (x) {
+        var svg = DUEL_ICONS[x.bild];
+        return '<button type="button" class="duel__card" aria-pressed="false">' +
+          (svg ? '<svg viewBox="0 0 100 100" aria-hidden="true">' + svg + '</svg>' : '<span class="duel__missing"></span>') +
+          '<span class="duel__name">' + fmt(x.name) + '</span>' +
+          '<span class="duel__check" aria-hidden="true">✓</span>' +
+        '</button>';
+      }).join('') + '</div>' +
+      '<p class="duel__outro">' + fmt(d.schluss) + '</p>';
+  }
+
+  // Antippen wählt eine Disziplin (nochmal tippen hebt die Wahl auf)
+  function wireDuel(sheet) {
+    Array.prototype.forEach.call(sheet.querySelectorAll('.duel__card'), function (card) {
+      card.addEventListener('click', function () {
+        var was = card.classList.contains('is-picked');
+        Array.prototype.forEach.call(sheet.querySelectorAll('.duel__card'), function (x) {
+          x.classList.remove('is-picked');
+          x.setAttribute('aria-pressed', 'false');
+        });
+        if (!was) { card.classList.add('is-picked'); card.setAttribute('aria-pressed', 'true'); haptic(8); }
       });
     });
   }
@@ -427,6 +513,7 @@
     sheets.slice().reverse().forEach(function (s) { holder.appendChild(s.el); });
     wireWallet(sheets[special.wallet].el);
     if (special.collage != null) wireCollage(sheets[special.collage].el);
+    if (special.duel != null) wireDuel(sheets[special.duel].el);
     $('.restart', book).addEventListener('click', restart);
     current = Math.min(current, sheets.length - 1);
     placeSheets();
