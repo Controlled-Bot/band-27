@@ -314,42 +314,66 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* Geschenk-Brief: Umschlag öffnen, Karte mit Code, Emojis und Sound   */
+  /* Geschenk: hüpfende Box öffnen, Karte mit Code, fliegende Emojis     */
   /* ------------------------------------------------------------------ */
 
+  // Geschenkbox als SVG: Box und Deckel getrennt, damit der Deckel wegspringen kann
+  var GIFT_BOX =
+    '<svg class="gift__svg" viewBox="0 0 120 120" aria-hidden="true">' +
+      '<defs>' +
+        '<linearGradient id="gbBox" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#ECECF1"/></linearGradient>' +
+        '<linearGradient id="gbLid" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#F3F3F6"/></linearGradient>' +
+        '<linearGradient id="gbRib" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF4D6A"/><stop offset="1" stop-color="#E8284A"/></linearGradient>' +
+      '</defs>' +
+      '<g class="gift__body">' +
+        '<rect x="22" y="56" width="76" height="54" rx="8" fill="url(#gbBox)"/>' +
+        '<rect x="22" y="56" width="76" height="7" fill="#000" opacity=".05"/>' +
+        '<rect x="54" y="56" width="12" height="54" fill="url(#gbRib)"/>' +
+      '</g>' +
+      '<g class="gift__lid">' +
+        '<path d="M58 40c-6-12-26-16-27-5-1 8 15 8 27 5z" fill="#FF4D6A"/>' +
+        '<path d="M62 40c6-12 26-16 27-5 1 8-15 8-27 5z" fill="#FF4D6A"/>' +
+        '<path d="M58 40c-8-7-19-9-20-4" stroke="#C81E3E" stroke-width="1.6" fill="none" stroke-linecap="round" opacity=".45"/>' +
+        '<path d="M62 40c8-7 19-9 20-4" stroke="#C81E3E" stroke-width="1.6" fill="none" stroke-linecap="round" opacity=".45"/>' +
+        '<rect x="16" y="40" width="88" height="19" rx="6" fill="url(#gbLid)"/>' +
+        '<rect x="54" y="40" width="12" height="19" fill="url(#gbRib)"/>' +
+        '<rect x="54" y="35" width="12" height="9" rx="4" fill="#E8284A"/>' +
+      '</g>' +
+    '</svg>';
+
   function giftHtml(g) {
-    return '<div class="gift">' +
-      '<div class="gift__stage">' +
-        '<span class="gift__env gift__env--back"></span>' +
-        '<div class="gift__card">' +
-          '<p class="gift__title">' + fmt(g.titel) + '</p>' +
-          '<p class="gift__code" data-code="' + esc(g.code) + '">' + fmt(g.code) + '</p>' +
-          '<button type="button" class="gift__copy" tabindex="-1">' +
-            '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V6.5A2.5 2.5 0 0 1 7.5 4H15"/></svg>' +
-            '<span>' + esc(g.buttonText) + '</span></button>' +
+    var bg = g.bild && IMAGES[g.bild];
+    return (bg ? '<span class="gift__bg" aria-hidden="true"><img src="' + bg + '" alt="" draggable="false"' +
+        (g.fokus ? ' style="object-position:' + esc(g.fokus) + '"' : '') + '></span>' : '') +
+      '<div class="gift">' +
+        '<div class="gift__stage">' +
+          '<button type="button" class="gift__box" aria-label="Geschenk öffnen">' +
+            '<span class="gift__shadow" aria-hidden="true"></span>' + GIFT_BOX +
+          '</button>' +
+          '<div class="gift__card">' +
+            '<p class="gift__title">' + fmt(g.titel) + '</p>' +
+            '<p class="gift__code" data-code="' + esc(g.code) + '">' + fmt(g.code) + '</p>' +
+            '<button type="button" class="gift__copy" tabindex="-1">' +
+              '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V6.5A2.5 2.5 0 0 1 7.5 4H15"/></svg>' +
+              '<span>' + esc(g.buttonText) + '</span></button>' +
+          '</div>' +
         '</div>' +
-        '<span class="gift__env gift__env--pocket"></span>' +
-        '<span class="gift__env gift__env--flap"></span>' +
-        '<button type="button" class="gift__open" aria-label="Umschlag öffnen"></button>' +
-      '</div>' +
-      '<p class="gift__hint">' + fmt(g.hinweis) + '</p>' +
-    '</div>';
+        '<p class="gift__hint">' + fmt(g.hinweis) + '</p>' +
+      '</div>';
   }
 
   function wireGift(sheet) {
-    var gift = $('.gift', sheet), openBtn = $('.gift__open', sheet), copy = $('.gift__copy', sheet);
+    var gift = $('.gift', sheet), box = $('.gift__box', sheet), copy = $('.gift__copy', sheet);
     var g = D.geschenk, opened = false;
 
-    openBtn.addEventListener('click', function () {
+    box.addEventListener('click', function () {
       if (opened) return;
       opened = true;
       haptic(12);
-      partySound();                                   // direkt im Tap, damit iOS Safari den Ton erlaubt
-      duckMusic(1800);
       var t = reduceMotion ? 0.1 : 1;
-      gift.classList.add('is-open');
-      setTimeout(function () { gift.classList.add('is-out'); emojiBurst(g.emojis); }, 450 * t);
-      setTimeout(function () { gift.classList.add('is-done'); copy.removeAttribute('tabindex'); }, 1300 * t);
+      gift.classList.add('is-open');                  // Deckel springt weg
+      setTimeout(function () { gift.classList.add('is-out'); emojiBurst(g.emojis); }, 380 * t);
+      setTimeout(function () { gift.classList.add('is-done'); copy.removeAttribute('tabindex'); }, 1200 * t);
     });
 
     copy.addEventListener('click', function () {
@@ -416,68 +440,6 @@
       ], { duration: dur, delay: delay, easing: 'cubic-bezier(.2,.6,.35,1)', fill: 'both' });
     }
     setTimeout(function () { layer.remove(); }, longest + 100);
-  }
-
-  // Partyhorn + Konfetti-Pop, mit Web Audio selbst erzeugt (keine Datei)
-  var audioCtx = null;
-  function partySound() {
-    var AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return;
-    try {
-      audioCtx = audioCtx || new AC();
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-      var ctx = audioCtx, t0 = ctx.currentTime + 0.02;
-      var master = ctx.createGain();
-      master.gain.value = 0.22;                        // moderate Lautstärke
-      master.connect(ctx.destination);
-
-      // Pop: kurzer Rausch-Knall
-      var len = Math.floor(ctx.sampleRate * 0.12), buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
-      for (var i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
-      var pop = ctx.createBufferSource(), popF = ctx.createBiquadFilter(), popG = ctx.createGain();
-      pop.buffer = buf;
-      popF.type = 'bandpass'; popF.frequency.value = 1800; popF.Q.value = 0.8;
-      popG.gain.value = 1.4;
-      pop.connect(popF); popF.connect(popG); popG.connect(master);
-      pop.start(t0);
-
-      // Tröte: zwei leicht verstimmte Sägezähne mit Tonhöhen-Schwung und Vibrato
-      var hornG = ctx.createGain(), hornF = ctx.createBiquadFilter();
-      hornF.type = 'lowpass'; hornF.frequency.value = 2400; hornF.Q.value = 3;
-      hornG.gain.setValueAtTime(0.0001, t0 + 0.08);
-      hornG.gain.exponentialRampToValueAtTime(0.5, t0 + 0.14);
-      hornG.gain.setValueAtTime(0.5, t0 + 0.75);
-      hornG.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.05);
-      hornF.connect(hornG); hornG.connect(master);
-      var lfo = ctx.createOscillator(), lfoG = ctx.createGain();
-      lfo.frequency.value = 9; lfoG.gain.value = 14;
-      lfo.connect(lfoG);
-      [0, 7].forEach(function (cents) {
-        var o = ctx.createOscillator();
-        o.type = 'sawtooth';
-        o.detune.value = cents;
-        o.frequency.setValueAtTime(330, t0 + 0.08);
-        o.frequency.exponentialRampToValueAtTime(470, t0 + 0.3);
-        o.frequency.setValueAtTime(470, t0 + 0.8);
-        o.frequency.exponentialRampToValueAtTime(400, t0 + 1.05);
-        lfoG.connect(o.frequency);
-        o.connect(hornF);
-        o.start(t0 + 0.08);
-        o.stop(t0 + 1.1);
-      });
-      lfo.start(t0 + 0.08);
-      lfo.stop(t0 + 1.1);
-
-      // kleines Konfetti-Knistern hinterher
-      for (var k = 0; k < 6; k++) {
-        var c = ctx.createBufferSource(), cg = ctx.createGain();
-        c.buffer = buf;
-        c.playbackRate.value = 2.5 + Math.random() * 2;
-        cg.gain.value = 0.25;
-        c.connect(cg); cg.connect(master);
-        c.start(t0 + 0.12 + k * 0.07 + Math.random() * 0.04);
-      }
-    } catch (e) { /* ohne Ton weiter */ }
   }
 
   /* ------------------------------------------------------------------ */
@@ -799,7 +761,6 @@
   /* ------------------------------------------------------------------ */
 
   var pauseMusic = function () {};
-  var duckMusic = function () {};
 
   function setupMusic() {
     var btn = $('#music');
@@ -816,14 +777,6 @@
       btn.classList.toggle('is-on', on);
     }
     pauseMusic = function () { if (!audio.paused) { audio.pause(); setState(false); } };
-    // kurz leiser, solange ein anderer Sound spielt
-    var base = audio.volume, duckTimer = 0;
-    duckMusic = function (ms) {
-      if (audio.paused) return;
-      clearTimeout(duckTimer);
-      audio.volume = base * 0.25;
-      duckTimer = setTimeout(function () { audio.volume = base; }, ms);
-    };
     btn.addEventListener('click', function () {
       if (audio.paused) {
         if (voiceStop) voiceStop();

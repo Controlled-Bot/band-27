@@ -569,64 +569,88 @@ mark.ph {
   transition: opacity .8s var(--ease);
 }
 
-/* Geschenk-Brief */
-.pg--gift .pg__body { display: flex; overflow: visible; }
-.gift { position: relative; flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-.gift__stage { position: relative; width: 100%; aspect-ratio: 1.45; margin-top: 10%; perspective: 900px; }
-.gift__env { position: absolute; display: block; transition: transform .6s var(--ease) .1s, opacity .5s var(--ease) .1s; }
-.gift__env--back {
-  inset: 0;
-  z-index: 1;
-  border-radius: .9em;
-  background: #ECECF0;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, .06), 0 14px 30px -12px rgba(0, 0, 0, .28);
+/* Geschenk: Azur-Bucht im Hintergrund, hüpfende Box, Glas-Karte */
+.pg--gift .pg__body { position: static; display: flex; overflow: visible; }
+.pg--gift .pg__num { position: relative; z-index: 1; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .45); }
+.gift__bg { position: absolute; inset: 0; z-index: 0; }
+.gift__bg img { display: block; width: 100%; height: 100%; object-fit: cover; filter: saturate(.85); -webkit-user-drag: none; }
+.gift__bg::after { content: ""; position: absolute; inset: 0; background: rgba(255, 255, 255, .3); }   /* leicht verblasst */
+.gift { position: relative; z-index: 1; flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+.gift__stage { position: relative; width: 100%; height: 13em; }
+
+.gift__box {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 9.5em;
+  margin-left: -4.75em;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
 }
-.gift__env--pocket {
-  inset: 0;
-  z-index: 3;
-  border-radius: .9em;
-  background: linear-gradient(180deg, #FBFBFD, #F2F2F5);
-  clip-path: polygon(0 0, 50% 54%, 100% 0, 100% 100%, 0 100%);
-  box-shadow: inset 0 0 0 .5px rgba(0, 0, 0, .06);
+.gift__svg {
+  display: block;
+  width: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 .5em .7em rgba(0, 40, 80, .18));
+  transform-origin: 50% 100%;
+  animation: giftHop 2s cubic-bezier(.3, 0, .3, 1) infinite;
 }
-.gift__env--flap {
-  top: 0; left: 0; right: 0;
-  height: 58%;
-  z-index: 4;
-  border-radius: .9em .9em 0 0;
-  background: linear-gradient(180deg, #F6F6F8, #E9E9ED);
-  clip-path: polygon(0 0, 100% 0, 50% 100%);
-  transform-origin: 50% 0;
-  transition: transform .5s var(--ease), z-index 0s .25s, opacity .5s var(--ease) .1s;
+.gift__shadow {
+  position: absolute;
+  left: 22%;
+  right: 22%;
+  bottom: .15em;
+  height: .7em;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(0, 30, 60, .28), rgba(0, 30, 60, 0));
+  animation: giftShadow 2s cubic-bezier(.3, 0, .3, 1) infinite;
 }
-.gift.is-open .gift__env--flap { transform: rotateX(180deg); z-index: 1; }
-.gift__open { position: absolute; inset: 0; z-index: 5; border: 0; background: none; cursor: pointer; }
-.gift.is-open .gift__open { display: none; }
+/* kleiner Sprung mit Squash, dann Pause */
+@keyframes giftHop {
+  0%, 55%, 100% { transform: translateY(0) scale(1, 1); }
+  63% { transform: translateY(0) scale(1.07, .9); }
+  75% { transform: translateY(-16%) scale(.97, 1.04); }
+  86% { transform: translateY(0) scale(1.05, .93); }
+  93% { transform: translateY(0) scale(.99, 1.01); }
+}
+@keyframes giftShadow {
+  0%, 55%, 100% { transform: scaleX(1); opacity: 1; }
+  75% { transform: scaleX(.7); opacity: .5; }
+}
+.gift__lid, .gift__body { transform-box: fill-box; transform-origin: 50% 100%; transition: transform .6s var(--spring), opacity .45s var(--ease); }
+.gift.is-open .gift__svg, .gift.is-open .gift__shadow { animation: none; }
+.gift.is-open .gift__lid { transform: translate(18%, -120%) rotate(24deg); opacity: 0; }
+.gift.is-out .gift__box { pointer-events: none; }
+.gift.is-out .gift__body { transform: translateY(12%) scale(.9); opacity: 0; transition-delay: .25s; }
+.gift.is-out .gift__shadow { opacity: 0; transition: opacity .4s; }
+
 .gift__card {
   position: absolute;
   z-index: 2;
-  left: 6%;
-  right: 6%;
-  top: 6%;
-  height: 86%;
+  left: 4%;
+  right: 4%;
+  top: 50%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: .55em;
-  padding: .8em;
-  border-radius: .8em;
-  background: #fff;
+  gap: .6em;
+  padding: 1.2em 1em;
+  border: 1px solid rgba(255, 255, 255, .55);
+  border-radius: 1.1em;
+  background: rgba(255, 255, 255, .66);         /* auch ohne Blur gut lesbar */
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
   color: #1D1D1F;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, .08), 0 10px 26px -10px rgba(0, 0, 0, .3);
-  transition: transform .95s var(--spring), z-index 0s .3s;
+  box-shadow: 0 12px 32px -10px rgba(0, 30, 60, .35);
+  opacity: 0;
+  transform: translateY(0) scale(.35);             /* wartet klein in der Box */
+  pointer-events: none;
+  transition: transform .9s var(--spring), opacity .35s var(--ease);
 }
-.gift.is-out .gift__card { transform: translateY(-52%) scale(1.05); z-index: 10; }
-.gift.is-done .gift__card { transform: translateY(-4%) scale(1.08); }   /* nach dem Herausgleiten mittig ablegen */
-.gift.is-out .gift__env--back,
-.gift.is-out .gift__env--pocket,
-.gift.is-out .gift__env--flap { transform: translateY(40%); opacity: 0; }
-.gift__title { margin: 0; font: 600 .7em/1.2 var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+.gift.is-out .gift__card { opacity: 1; transform: translateY(-50%) scale(1); pointer-events: auto; }
+.gift__title { margin: 0; font: 600 .7em/1.2 var(--sans); letter-spacing: .1em; text-transform: uppercase; color: #0071E3; }
 .gift__code {
   margin: 0;
   font: 700 1.55em/1.15 var(--mono);
@@ -644,7 +668,7 @@ mark.ph {
   padding: 0 1.1em;
   border: 0;
   border-radius: 999px;
-  background: var(--accent);
+  background: #0071E3;
   color: #fff;
   font: 600 .78em/1 var(--sans);
   cursor: pointer;
@@ -655,7 +679,18 @@ mark.ph {
 .gift__copy svg { width: 1.2em; height: 1.2em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .gift.is-done .gift__copy { opacity: 1; pointer-events: auto; }
 .gift__copy.is-copied { background: #34C759; }
-.gift__hint { margin: 1.4em 0 0; font-size: .78em; color: var(--muted); transition: opacity .3s; }
+.gift__hint {
+  margin: 1.3em 0 0;
+  padding: .45em 1em;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, .22);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
+  color: #fff;
+  font: 500 .74em/1 var(--sans);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .2);
+  transition: opacity .3s;
+}
 .gift.is-open .gift__hint { opacity: 0; }
 
 /* Emoji-Flug beim Öffnen (über dem ganzen Bildschirm) */
