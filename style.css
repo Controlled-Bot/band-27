@@ -528,12 +528,11 @@ mark.ph {
 .sheet:not([inert]) .accent { opacity: 1; transform: rotate(var(--r, 0deg)); }
 .accent--tr { top: 1.6%; right: 3.5%; }
 .accent--br { bottom: 1.2%; right: 3.5%; }
+.accent-anchor { position: relative; display: inline-block; width: 0; height: 0; }
 .accent--inline {
-  position: relative;
-  display: inline-block;
-  margin-left: .45em;
-  font-size: 3.5em;                   /* relativ zur kleinen Band-Zeile */
-  vertical-align: -.3em;
+  left: .35em;
+  bottom: -.02em;                     /* sitzt über der Band-Zeile, nicht auf dem Titel */
+  font-size: 6.2em;                   /* relativ zur kleinen Band-Zeile, ca. 60px auf dem iPhone */
   opacity: 1;
   transform: rotate(var(--r, 0deg));
 }

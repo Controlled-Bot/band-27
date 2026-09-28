@@ -83,7 +83,9 @@
   // Kleines Geburtstags-Emoji in einer Ecke der Seite: tr = oben rechts, br = unten rechts
   function accentHtml(emoji, pos, deg) {
     if (!emoji) return '';
-    return '<span class="accent accent--' + pos + '" style="--r:' + deg + 'deg" aria-hidden="true">' + esc(emoji) + '</span>';
+    var html = '<span class="accent accent--' + pos + '" style="--r:' + deg + 'deg" aria-hidden="true">' + esc(emoji) + '</span>';
+    // inline: Ankerpunkt ohne eigene Größe, damit ein großes Emoji die Zeile nicht verschiebt
+    return pos === 'inline' ? '<span class="accent-anchor">' + html + '</span>' : html;
   }
   function acc(key, i) {
     var v = (D.akzente || {})[key];
