@@ -98,20 +98,6 @@ mark.ph {
   box-decoration-break: clone;
 }
 
-/* Buttons im iOS-Stil */
-.pill {
-  height: 50px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--accent);
-  color: #fff;
-  font-weight: 600;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: transform .2s var(--ease), background .3s var(--ease), opacity .3s;
-}
-.pill:active { transform: scale(.96); }
-
 /* =====================================================================
    Bühne und Buch
    ===================================================================== */
@@ -586,11 +572,27 @@ mark.ph {
 /* Rückseite: dunkles Blatt */
 .face--front:has(.pg--back) { background: #1D1D1F; color: #F5F5F7; }
 .pg--back::before { background: linear-gradient(90deg, rgba(0, 0, 0, .35), rgba(0, 0, 0, 0)); }
-.back { height: 100%; display: flex; flex-direction: column; padding-top: 6%; }
+/* Inhalt der Rückseite bezieht sich auf die ganze Seite, damit alles exakt mittig sitzt */
+.pg--back .pg__body, .back { position: static; }
+.back__num {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: grid;
+  place-items: center;
+  font: 700 15.5em/1 var(--display);
+  letter-spacing: -.06em;
+  text-indent: -.06em;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .11), rgba(255, 255, 255, .04));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  pointer-events: none;
+  user-select: none;
+}
 
 /* Sprachnachricht im iMessage-Stil */
-.voice { display: flex; flex-direction: column; align-items: center; gap: .7em; margin: auto 0; }
-.voice__hint { margin: 0; font-size: .8em; color: rgba(245, 245, 247, .55); text-align: center; }
+.voice { position: absolute; z-index: 2; left: 50%; top: 50%; transform: translate(-50%, -50%); }
 .voice__bubble {
   display: flex;
   align-items: center;
@@ -602,9 +604,7 @@ mark.ph {
   color: #fff;
   cursor: pointer;
   box-shadow: 0 6px 18px -6px rgba(10, 132, 255, .55);
-  transition: transform .2s var(--ease);
 }
-.voice__bubble:active { transform: scale(.97); }
 .voice__play {
   position: relative;
   flex: none;
@@ -625,28 +625,11 @@ mark.ph {
   height: calc(var(--h) * 100%);
   min-height: .25em;
   border-radius: .1em;
-  background: #fff;
-  opacity: .45;
-  transition: opacity .15s linear;
+  background: rgba(190, 222, 255, .5);          /* noch nicht gespielt: hellblau-transparent */
+  transition: background-color .15s linear;
 }
-.voice__wave i.is-played { opacity: 1; }
-.voice__bubble.is-playing .voice__wave i { animation: voiceBar .9s ease-in-out var(--d) infinite alternate; }
-@keyframes voiceBar { from { transform: scaleY(1); } to { transform: scaleY(.55); } }
+.voice__wave i.is-played { background: #fff; }   /* Fortschritt nur über die Farbe, Balken bleiben statisch */
 .voice__time { min-width: 2.2em; font: 500 .8em/1 var(--sans); font-variant-numeric: tabular-nums; text-align: right; }
-.back__reviews { margin: 0 0 1.6em; display: grid; gap: 1em; }
-.review { margin: 0; }
-.review p { margin: 0; font-size: .86em; line-height: 1.4; color: rgba(245, 245, 247, .9); }
-.review p::before { content: "★★★★★"; display: block; margin-bottom: .25em; font-size: .8em; letter-spacing: .12em; color: #FF9F0A; }
-.review cite { display: block; margin-top: .3em; font: normal 500 .7em/1.2 var(--sans); color: rgba(245, 245, 247, .55); }
-.back__foot { display: flex; align-items: center; justify-content: space-between; gap: .8em; }
-.back__isbn { font: 500 .6em/1 var(--sans); color: rgba(245, 245, 247, .45); letter-spacing: .04em; }
-.pill--ghost {
-  height: 2.4em;
-  padding: 0 1.1em;
-  font-size: .78em;
-  background: rgba(255, 255, 255, .14);
-  color: #fff;
-}
 
 /* =====================================================================
    Schwebende Navigationsleiste (Glas)

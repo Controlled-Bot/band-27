@@ -228,12 +228,8 @@
     var r = D.rueckseite;
     page('Rückseite',
       '<div class="back">' +
+        (r.zahl ? '<span class="back__num" aria-hidden="true">' + esc(r.zahl) + '</span>' : '') +
         (r.sprachnachricht ? voiceHtml(r.sprachnachricht) : '') +
-        '<div class="back__reviews">' + (r.rezensionen || []).map(function (x) {
-          return '<blockquote class="review"><p>' + fmt(x.text) + '</p><cite>' + fmt(x.quelle) + '</cite></blockquote>';
-        }).join('') + '</div>' +
-        '<div class="back__foot"><button type="button" class="pill pill--ghost restart">Von vorn lesen</button>' +
-        '<span class="back__isbn">' + fmt(r.isbn || '') + '</span></div>' +
       '</div>', 'pg--back', { head: false, number: false, accent: accentHtml(acc('rueckseite', 0), 'tr', 7) });
     special.back = sheets.length - 1;
   }
@@ -246,14 +242,13 @@
 
   function voiceHtml(v) {
     return '<div class="voice">' +
-      (v.hinweis ? '<p class="voice__hint">' + fmt(v.hinweis) + '</p>' : '') +
       '<button type="button" class="voice__bubble" aria-label="Sprachnachricht abspielen">' +
         '<span class="voice__play" aria-hidden="true">' +
           '<svg class="voice__icon voice__icon--play" viewBox="0 0 24 24"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>' +
           '<svg class="voice__icon voice__icon--pause" viewBox="0 0 24 24"><rect x="6.5" y="5" width="4" height="14" rx="1.3"/><rect x="13.5" y="5" width="4" height="14" rx="1.3"/></svg>' +
         '</span>' +
-        '<span class="voice__wave" aria-hidden="true">' + WAVE.map(function (h, i) {
-          return '<i style="--h:' + h + ';--d:' + (i % 5) * 0.09 + 's"></i>';
+        '<span class="voice__wave" aria-hidden="true">' + WAVE.map(function (h) {
+          return '<i style="--h:' + h + '"></i>';
         }).join('') + '</span>' +
         '<span class="voice__time">' + esc(v.dauer || '') + '</span>' +
       '</button>' +
@@ -406,7 +401,6 @@
     sheets.slice().reverse().forEach(function (s) { holder.appendChild(s.el); });
     if (special.collage != null) wireCollage(sheets[special.collage].el);
     wireVoice(sheets[special.back].el);
-    $('.restart', book).addEventListener('click', restart);
     current = Math.min(current, sheets.length - 1);
     placeSheets();
   }
@@ -507,12 +501,6 @@
     cover.setAttribute('aria-label', 'Buch öffnen');
     $('#bar').classList.remove('is-shown');
     setTimeout(function () { $('#bar').hidden = true; animating = false; }, reduceMotion ? 50 : 1100);
-  }
-
-  function restart() {
-    current = 0;
-    placeSheets();
-    closeBook();
   }
 
   function setTurn(s, p, instant) {
