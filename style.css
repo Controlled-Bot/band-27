@@ -21,10 +21,6 @@
   --fill: rgba(120, 120, 128, .14);
   --glass: rgba(255, 255, 255, .72);
   --glass-line: rgba(0, 0, 0, .07);
-  --env-back: #E8E8ED;
-  --env-front: #F2F2F5;
-  --env-flap: #E0E0E6;
-  --green: #34C759;
   --veil: 255, 255, 255;             /* Schleier über dem Coverbild (RGB) */
 
   --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -55,10 +51,6 @@
     --fill: rgba(118, 118, 128, .26);
     --glass: rgba(36, 36, 38, .68);
     --glass-line: rgba(255, 255, 255, .09);
-    --env-back: #2C2C2E;
-    --env-front: #3A3A3C;
-    --env-flap: #333336;
-    --green: #30D158;
     --veil: 28, 28, 30;
   }
 }
@@ -395,15 +387,6 @@ mark.ph {
   letter-spacing: -.01em;
   text-wrap: balance;
 }
-.letter p {
-  margin: 0 0 .8em;
-  font-size: .96em;
-  line-height: 1.55;
-  letter-spacing: -.005em;
-  text-wrap: pretty;
-  -webkit-hyphens: auto;
-  hyphens: auto;
-}
 
 /* Kapiteltext, gesetzt wie in einem Buch (Seiten werden per JS umbrochen) */
 .chapter p {
@@ -511,8 +494,6 @@ mark.ph {
   line-height: 1;
 }
 
-.signature { margin: .6em 0 0; text-align: right; font: italic 400 1.15em/1.2 var(--serif); }
-.letter__salute { font: italic 400 1.12em/1.3 var(--serif) !important; }
 
 /* Geburtstags-Akzente: ein Emoji pro Seite in der Ecke, blendet beim Aufschlagen kurz ein */
 .accent {
@@ -535,63 +516,6 @@ mark.ph {
   font-size: 6.2em;                   /* relativ zur kleinen Band-Zeile, ca. 60px auf dem iPhone */
   opacity: 1;
   transform: rotate(var(--r, 0deg));
-}
-
-/* Die Herausforderung: Disziplinen als verstreute Karten */
-.pg--duel .pg__body { display: flex; flex-direction: column; overflow: visible; }
-.duel__title { flex: none; margin-top: .2em; margin-bottom: .35em; }
-.duel__intro { flex: none; margin: 0 0 .6em; font-size: .92em; line-height: 1.45; color: var(--muted); text-wrap: pretty; }
-.duel { position: relative; flex: 1 1 auto; min-height: 13em; }
-.duel__card {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: .22em;
-  padding: .26em .26em .3em;
-  border: 0;
-  border-radius: .7em;
-  background: #fff;
-  color: #1D1D1F;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, .08), 0 7px 18px -6px rgba(0, 0, 0, .26);
-  cursor: pointer;
-  transform: rotate(var(--r, 0deg));
-  transition: transform .45s var(--spring), box-shadow .45s var(--ease);
-}
-.duel__card svg { display: block; width: 100%; height: auto; border-radius: .48em; }
-.duel__name { font: 600 .6em/1.15 var(--sans); text-align: center; letter-spacing: -.01em; white-space: nowrap; }
-.duel__check {
-  position: absolute;
-  top: -.45em;
-  right: -.45em;
-  display: grid;
-  place-items: center;
-  width: 1.5em;
-  height: 1.5em;
-  border-radius: 50%;
-  background: var(--green);
-  color: #fff;
-  font: 700 .8em/1 var(--sans);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, .2);
-  opacity: 0;
-  transform: scale(.4);
-  transition: opacity .25s var(--ease), transform .4s var(--spring);
-}
-.duel__card.is-picked { z-index: 20 !important; transform: rotate(0deg) translateY(-.35em) scale(1.1); box-shadow: 0 2px 4px rgba(0, 0, 0, .1), 0 16px 32px -8px rgba(0, 0, 0, .36); }
-.duel__card.is-picked .duel__check { opacity: 1; transform: none; }
-/* Verstreut: zwei Reihen zu je drei Karten, Namen bleiben lesbar */
-.duel__card:nth-child(1) { left: 1.5%; top: 3%;    width: 32%; --r: -6deg; z-index: 1; }
-.duel__card:nth-child(2) { left: 34%;  top: 0;     width: 30%; --r: 4deg;  z-index: 2; }
-.duel__card:nth-child(3) { right: 1.5%; top: 5%;    width: 32%; --r: -3deg; z-index: 1; }
-.duel__card:nth-child(4) { left: 3%;   bottom: 2%; width: 32%; --r: 5deg;  z-index: 3; }
-.duel__card:nth-child(5) { left: 36%;  bottom: 5%; width: 29%; --r: -5deg; z-index: 4; }
-.duel__card:nth-child(6) { right: 2%;  bottom: 0;  width: 32%; --r: 7deg;  z-index: 3; }
-.duel__outro {
-  flex: none;
-  margin: .7em 0 0;
-  text-align: center;
-  font: italic 500 1em/1.4 var(--serif);
-  text-wrap: balance;
 }
 
 /* Collage: verstreute Fotos wie auf einem Tisch */
@@ -663,17 +587,58 @@ mark.ph {
 .face--front:has(.pg--back) { background: #1D1D1F; color: #F5F5F7; }
 .pg--back::before { background: linear-gradient(90deg, rgba(0, 0, 0, .35), rgba(0, 0, 0, 0)); }
 .back { height: 100%; display: flex; flex-direction: column; padding-top: 6%; }
-.back__blurb {
-  margin: 0;
-  font: italic 400 1.14em/1.45 var(--serif);
-  text-wrap: pretty;
+
+/* Sprachnachricht im iMessage-Stil */
+.voice { display: flex; flex-direction: column; align-items: center; gap: .7em; margin: auto 0; }
+.voice__hint { margin: 0; font-size: .8em; color: rgba(245, 245, 247, .55); text-align: center; }
+.voice__bubble {
+  display: flex;
+  align-items: center;
+  gap: .65em;
+  padding: .55em 1em .55em .6em;
+  border: 0;
+  border-radius: 1.4em;
+  background: linear-gradient(180deg, #2E8BFF, #0A7AFF);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 6px 18px -6px rgba(10, 132, 255, .55);
+  transition: transform .2s var(--ease);
 }
-.back__reviews { margin-top: 1.6em; display: grid; gap: 1em; }
+.voice__bubble:active { transform: scale(.97); }
+.voice__play {
+  position: relative;
+  flex: none;
+  width: 2.1em;
+  height: 2.1em;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .22);
+}
+.voice__icon { position: absolute; inset: 0; margin: auto; width: 1.15em; height: 1.15em; fill: #fff; transition: opacity .2s, transform .25s var(--spring); }
+.voice__icon--play { transform: translateX(.06em); }
+.voice__icon--pause { opacity: 0; transform: scale(.6); }
+.voice__bubble.is-playing .voice__icon--play { opacity: 0; transform: scale(.6); }
+.voice__bubble.is-playing .voice__icon--pause { opacity: 1; transform: none; }
+.voice__wave { display: flex; align-items: center; gap: .13em; height: 1.8em; }
+.voice__wave i {
+  display: block;
+  width: .16em;
+  height: calc(var(--h) * 100%);
+  min-height: .25em;
+  border-radius: .1em;
+  background: #fff;
+  opacity: .45;
+  transition: opacity .15s linear;
+}
+.voice__wave i.is-played { opacity: 1; }
+.voice__bubble.is-playing .voice__wave i { animation: voiceBar .9s ease-in-out var(--d) infinite alternate; }
+@keyframes voiceBar { from { transform: scaleY(1); } to { transform: scaleY(.55); } }
+.voice__time { min-width: 2.2em; font: 500 .8em/1 var(--sans); font-variant-numeric: tabular-nums; text-align: right; }
+.back__reviews { margin: 0 0 1.6em; display: grid; gap: 1em; }
 .review { margin: 0; }
 .review p { margin: 0; font-size: .86em; line-height: 1.4; color: rgba(245, 245, 247, .9); }
 .review p::before { content: "★★★★★"; display: block; margin-bottom: .25em; font-size: .8em; letter-spacing: .12em; color: #FF9F0A; }
 .review cite { display: block; margin-top: .3em; font: normal 500 .7em/1.2 var(--sans); color: rgba(245, 245, 247, .55); }
-.back__foot { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: .8em; }
+.back__foot { display: flex; align-items: center; justify-content: space-between; gap: .8em; }
 .back__isbn { font: 500 .6em/1 var(--sans); color: rgba(245, 245, 247, .45); letter-spacing: .04em; }
 .pill--ghost {
   height: 2.4em;
@@ -682,132 +647,6 @@ mark.ph {
   background: rgba(255, 255, 255, .14);
   color: #fff;
 }
-
-/* =====================================================================
-   Wallet-Karte im Umschlag
-   ===================================================================== */
-
-.pg--wallet .pg__body { display: flex; overflow: visible; }
-.wallet {
-  position: relative;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  align-items: center;
-  container-type: inline-size;
-}
-.envelope {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 1.38;
-  margin-bottom: 10%;
-  perspective: 900px;
-  cursor: pointer;
-  outline: none;
-  transition: transform .3s var(--ease);
-}
-.envelope:active { transform: scale(.98); }
-.env {
-  position: absolute;
-  display: block;
-  transition: transform .6s var(--ease) .12s, opacity .5s var(--ease) .12s;
-}
-.env--back { inset: 0; z-index: 1; background: var(--env-back); border-radius: 14px; }
-.env--pocket {
-  inset: 0;
-  z-index: 3;
-  border-radius: 14px;
-  background: var(--env-front);
-  clip-path: polygon(0 0, 50% 52%, 100% 0, 100% 100%, 0 100%);
-  box-shadow: 0 10px 24px -10px rgba(0, 0, 0, .25);
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding-bottom: 9%;
-}
-.env__label { font: italic 400 1em/1 var(--serif); color: var(--muted); }
-.env--flap {
-  top: 0; left: 0; right: 0;
-  height: 57%;
-  z-index: 4;
-  background: var(--env-flap);
-  border-radius: 14px 14px 0 0;
-  clip-path: polygon(0 0, 100% 0, 50% 100%);
-  transform-origin: 50% 0;
-  transition: transform .5s var(--ease), z-index 0s .25s, opacity .5s var(--ease) .12s;
-}
-.envelope.is-open .env--flap { transform: rotateX(180deg); z-index: 1; }
-
-.pass {
-  position: absolute;
-  z-index: 2;
-  left: 5%;
-  right: 5%;
-  top: 7%;
-  aspect-ratio: 1.586;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 6% 7%;
-  border-radius: 14px;
-  color: #fff;
-  background:
-    radial-gradient(120% 90% at 0% 0%, rgba(255, 255, 255, .28), rgba(255, 255, 255, 0) 55%),
-    linear-gradient(155deg, #2997FF 0%, #0071E3 55%, #0058B9 100%);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, .12), 0 14px 30px -10px rgba(0, 60, 140, .45);
-  transition: transform .95s var(--spring), z-index 0s .3s;
-}
-.wallet.is-out .pass { transform: translateY(var(--lift, -60%)); z-index: 10; }
-.wallet.is-out .env--back,
-.wallet.is-out .env--pocket,
-.wallet.is-out .env--flap { transform: translateY(35%); opacity: 0; }
-.wallet.is-out .envelope { cursor: default; }
-
-.pass__row { display: flex; justify-content: space-between; align-items: baseline; gap: .6em; }
-.pass__brand { font: 600 .72em/1.2 var(--sans); letter-spacing: .02em; }
-.pass__value { font: 600 1.45em/1 var(--display); letter-spacing: -.02em; white-space: nowrap; }
-.pass__code-wrap { display: flex; flex-direction: column; gap: .2em; }
-.pass__label { font: 600 .55em/1 var(--sans); letter-spacing: .1em; text-transform: uppercase; opacity: .75; }
-.pass__code {
-  font: 600 1.05em/1.2 var(--mono);
-  letter-spacing: .08em;
-  overflow-wrap: anywhere;
-  -webkit-user-select: all;
-  user-select: all;
-}
-.pass__row--foot { font: 500 .58em/1 var(--sans); opacity: .8; }
-.pass mark.ph { background: rgba(255, 255, 255, .22); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .6); }
-
-.wallet__hint {
-  position: absolute;
-  bottom: 0;
-  margin: 0;
-  font-size: .72em;
-  color: var(--muted);
-  transition: opacity .3s;
-}
-.wallet.is-out .wallet__hint { opacity: 0; }
-
-.copy {
-  position: absolute;
-  left: 5%;
-  right: 5%;
-  top: calc(90cqw / 1.586 + 1.1em);
-  height: 2.75em;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: .45em;
-  font-size: .86em;
-  opacity: 0;
-  transform: translateY(10px);
-  pointer-events: none;
-  transition: opacity .4s var(--ease), transform .5s var(--spring), background .3s var(--ease);
-}
-.copy svg { width: 1.2em; height: 1.2em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.wallet.is-done .copy { opacity: 1; transform: none; pointer-events: auto; }
-.copy.is-done { background: var(--green); }
 
 /* =====================================================================
    Schwebende Navigationsleiste (Glas)

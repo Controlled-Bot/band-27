@@ -1,4 +1,4 @@
-/* Band 27: 3D-Buch, Wallet-Karte, Konfetti, Musik.
+/* Band 27: 3D-Buch, Collage, Sprachnachricht, Konfetti, Musik.
    Die Inhalte stehen in inhalt.js (erzeugt aus inhalt/data.js). */
 (function () {
   'use strict';
@@ -22,11 +22,6 @@
       .replace(/\n/g, '<br>')
       .replace(/\*([^*]+)\*/g, '<em>$1</em>')
       .replace(/\[([^\]]+)\]/g, '<mark class="ph">[$1]</mark>');
-  }
-  function paras(list, leadCls) {
-    return (list || []).map(function (t, i) {
-      return '<p' + (leadCls && i === 0 ? ' class="' + leadCls + '"' : '') + '>' + fmt(t) + '</p>';
-    }).join('');
   }
 
   // Erster Chat im TikTok-Stil. Das Profilbild steht nur an der letzten Nachricht einer Gruppe.
@@ -230,171 +225,96 @@
         { head: false, accent: accentHtml(acc('collage', 0), 'tr', -9) });
     }
 
-    if (D.duell) {
-      special.duel = sheets.length;
-      page(D.duell.label, duelHtml(D.duell), 'pg--duel', { head: false, accent: accentHtml(acc('duell', 0), 'tr', 8) });
-    }
-
-    var a = D.anhang, b = a.brief;
-
-    special.wallet = sheets.length;
-    page(a.label, walletHtml(), 'pg--wallet',
-      { head: a.label + ' · ' + (b.gutschein.titel || ''), accent: accentHtml(acc('gutschein', 0), 'br', -6) });
-
     var r = D.rueckseite;
     page('Rückseite',
       '<div class="back">' +
-        '<p class="back__blurb">' + fmt(r.klappentext) + '</p>' +
+        (r.sprachnachricht ? voiceHtml(r.sprachnachricht) : '') +
         '<div class="back__reviews">' + (r.rezensionen || []).map(function (x) {
           return '<blockquote class="review"><p>' + fmt(x.text) + '</p><cite>' + fmt(x.quelle) + '</cite></blockquote>';
         }).join('') + '</div>' +
         '<div class="back__foot"><button type="button" class="pill pill--ghost restart">Von vorn lesen</button>' +
         '<span class="back__isbn">' + fmt(r.isbn || '') + '</span></div>' +
       '</div>', 'pg--back', { head: false, number: false, accent: accentHtml(acc('rueckseite', 0), 'tr', 7) });
+    special.back = sheets.length - 1;
   }
 
   /* ------------------------------------------------------------------ */
-  /* Wallet-Karte im Umschlag                                            */
+  /* Sprachnachricht auf der Rückseite (iMessage-Stil, nur per Antippen) */
   /* ------------------------------------------------------------------ */
 
-  function walletHtml() {
-    var a = D.anhang, g = a.brief.gutschein;
-    return '<div class="wallet">' +
-      '<div class="envelope" role="button" tabindex="0" aria-label="Umschlag öffnen">' +
-        '<span class="env env--back"></span>' +
-        '<div class="pass">' +
-          '<div class="pass__row"><span class="pass__brand">' + fmt(g.titel) + '</span><span class="pass__value">' + fmt(g.wert) + '</span></div>' +
-          '<div class="pass__code-wrap"><span class="pass__label">Code</span><span class="pass__code" data-code="' + esc(g.code) + '">' + fmt(g.code) + '</span></div>' +
-          '<div class="pass__row pass__row--foot"><span>' + fmt(D.cover.untertitel || '') + '</span><span>' + fmt(D.name || '') + '</span></div>' +
-        '</div>' +
-        '<span class="env env--pocket"><span class="env__label">' + fmt(a.umschlag || '') + '</span></span>' +
-        '<span class="env env--flap"></span>' +
-      '</div>' +
-      '<p class="wallet__hint">' + fmt(a.hinweis || '') + '</p>' +
-      '<button type="button" class="pill copy"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V6.5A2.5 2.5 0 0 1 7.5 4H15"/></svg><span>' + esc(g.buttonText) + '</span></button>' +
+  var WAVE = [.35, .55, .8, .5, .95, .7, .4, .65, 1, .75, .5, .85, .6, .3, .7, .9, .55, .8, .45, .65, .95, .6, .4, .7, .5, .3];
+
+  function voiceHtml(v) {
+    return '<div class="voice">' +
+      (v.hinweis ? '<p class="voice__hint">' + fmt(v.hinweis) + '</p>' : '') +
+      '<button type="button" class="voice__bubble" aria-label="Sprachnachricht abspielen">' +
+        '<span class="voice__play" aria-hidden="true">' +
+          '<svg class="voice__icon voice__icon--play" viewBox="0 0 24 24"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>' +
+          '<svg class="voice__icon voice__icon--pause" viewBox="0 0 24 24"><rect x="6.5" y="5" width="4" height="14" rx="1.3"/><rect x="13.5" y="5" width="4" height="14" rx="1.3"/></svg>' +
+        '</span>' +
+        '<span class="voice__wave" aria-hidden="true">' + WAVE.map(function (h, i) {
+          return '<i style="--h:' + h + ';--d:' + (i % 5) * 0.09 + 's"></i>';
+        }).join('') + '</span>' +
+        '<span class="voice__time">' + esc(v.dauer || '') + '</span>' +
+      '</button>' +
+      '<audio class="voice__audio" preload="metadata" playsinline webkit-playsinline src="' + esc(v.datei) + '"></audio>' +
     '</div>';
   }
 
-  function wireWallet(sheet) {
-    var wallet = $('.wallet', sheet), env = $('.envelope', sheet), pass = $('.pass', sheet), btn = $('.copy', sheet);
-    var opened = false;
+  var voiceStop = null;
 
-    function open() {
-      if (opened) return;
-      opened = true;
-      haptic(10);
-      var t = reduceMotion ? 0.1 : 1;
-      env.classList.add('is-open');
-      setTimeout(function () {
-        // Karte bis an den oberen Rand der Szene heben
-        var lift = env.offsetTop + pass.offsetTop - 4;
-        pass.style.setProperty('--lift', (-lift) + 'px');
-        wallet.classList.add('is-out');
-      }, 420 * t);
-      setTimeout(function () { wallet.classList.add('is-done'); }, 1250 * t);
+  function wireVoice(sheet) {
+    var btn = $('.voice__bubble', sheet), audio = $('.voice__audio', sheet);
+    if (!btn || !audio) return;
+    var bars = btn.querySelectorAll('.voice__wave i'), time = $('.voice__time', btn);
+    var total = time.textContent, raf = 0;
+
+    function mmss(sec) {
+      sec = Math.max(0, Math.round(sec || 0));
+      return Math.floor(sec / 60) + ':' + ('0' + (sec % 60)).slice(-2);
     }
-    env.addEventListener('click', open);
-    env.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+    function paint() {
+      var d = audio.duration, p = d ? audio.currentTime / d : 0;
+      var n = Math.round(p * bars.length);
+      for (var i = 0; i < bars.length; i++) bars[i].classList.toggle('is-played', i < n);
+      time.textContent = mmss(audio.currentTime);
+      if (!audio.paused) raf = requestAnimationFrame(paint);
+    }
+    function reset() {
+      cancelAnimationFrame(raf);
+      btn.classList.remove('is-playing');
+      btn.setAttribute('aria-label', 'Sprachnachricht abspielen');
+      for (var i = 0; i < bars.length; i++) bars[i].classList.remove('is-played');
+      time.textContent = total;
+    }
+
+    audio.addEventListener('loadedmetadata', function () {
+      if (isFinite(audio.duration) && audio.duration > 0) { total = mmss(audio.duration); if (audio.paused) time.textContent = total; }
+    });
+    audio.addEventListener('ended', function () { audio.currentTime = 0; reset(); });
+    audio.addEventListener('pause', function () {
+      cancelAnimationFrame(raf);
+      btn.classList.remove('is-playing');
+      btn.setAttribute('aria-label', 'Sprachnachricht abspielen');
     });
 
     btn.addEventListener('click', function () {
-      var g = D.anhang.brief.gutschein;
-      var label = btn.querySelector('span');
-      copyText($('.pass__code', sheet).getAttribute('data-code')).then(function (ok) {
-        haptic(10);
-        label.textContent = ok ? g.kopiertText : 'Bitte manuell kopieren';
-        btn.classList.toggle('is-done', ok);
-        if (!ok) selectText($('.pass__code', sheet));
-        setTimeout(function () { label.textContent = g.buttonText; btn.classList.remove('is-done'); }, 2200);
-      });
+      if (!audio.paused) { audio.pause(); return; }
+      pauseMusic();
+      var pr = audio.play();                          // direkt im Tap, damit iOS Safari es erlaubt
+      btn.classList.add('is-playing');
+      btn.setAttribute('aria-label', 'Sprachnachricht pausieren');
+      haptic(8);
+      raf = requestAnimationFrame(paint);
+      if (pr && pr.catch) pr.catch(function () { reset(); });
     });
+
+    voiceStop = function () { if (!audio.paused) audio.pause(); };
   }
 
-  /* Eigene Illustrationen für die Duell-Karten (keine Fotos, keine Logos) */
-  var DUEL_ICONS = {
-    uno:
-      '<rect width="100" height="100" rx="14" fill="#FFF3E6"/>' +
-      '<g transform="translate(50 84)">' +
-        [['#0A84FF', -30, '7'], ['#30D158', -10, '3'], ['#FFD60A', 10, '9'], ['#FF453A', 30, '5']].map(function (c) {
-          return '<g transform="rotate(' + c[1] + ')"><rect x="-15" y="-66" width="30" height="46" rx="5" fill="' + c[0] + '" stroke="#fff" stroke-width="2.5"/>' +
-            '<ellipse cx="0" cy="-43" rx="9" ry="14" transform="rotate(28 0 -43)" fill="#fff"/>' +
-            '<text x="0" y="-37" text-anchor="middle" font-family="-apple-system,Segoe UI,Arial,sans-serif" font-weight="800" font-size="17" fill="' + c[0] + '">' + c[2] + '</text></g>';
-        }).join('') +
-      '</g>',
-    laufen:
-      '<rect width="100" height="100" rx="14" fill="#E8F3FF"/>' +
-      '<path d="M8 50h16M5 58h14M10 66h12" stroke="#9CC8FF" stroke-width="3" stroke-linecap="round"/>' +
-      '<path d="M26 64c0-10 5-16 12-17l10-1c4 0 6-8 13-9h3c6 0 8 8 15 11l8 4c6 3 6 12-1 12H30c-2 0-4-1-4-3z" fill="#FF6B3D"/>' +
-      '<path d="M50 46l4 8M56 43l4 8M62 41l3 8" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>' +
-      '<path d="M40 56c10 2 22 2 34 0" stroke="#FFD2C2" stroke-width="3" fill="none" stroke-linecap="round"/>' +
-      '<rect x="24" y="63" width="70" height="9" rx="4.5" fill="#fff" stroke="#D1D1D6" stroke-width="1.5"/>',
-    seil:
-      '<rect width="100" height="100" rx="14" fill="#F4ECFF"/>' +
-      '<path d="M26 34C22 70 34 88 50 88S78 70 74 34" fill="none" stroke="#BF5AF2" stroke-width="4" stroke-linecap="round"/>' +
-      '<rect x="20" y="12" width="11" height="26" rx="5.5" transform="rotate(-10 25 25)" fill="#FF9F0A"/>' +
-      '<rect x="69" y="12" width="11" height="26" rx="5.5" transform="rotate(10 75 25)" fill="#FF9F0A"/>' +
-      '<circle cx="25" cy="14" r="2.2" fill="#fff" opacity=".7"/><circle cx="75" cy="14" r="2.2" fill="#fff" opacity=".7"/>',
-    schiffe: (function () {
-      var s = '<rect width="100" height="100" rx="14" fill="#E3F1FF"/>';
-      for (var r = 0; r < 5; r++) for (var c = 0; c < 5; c++) s += '<rect x="' + (13 + c * 15.4) + '" y="' + (13 + r * 15.4) + '" width="13" height="13" rx="3" fill="#B9DBFF"/>';
-      s += '<rect x="14" y="29.4" width="42.2" height="11" rx="5.5" fill="#636366"/>' +
-           '<rect x="75.6" y="44.8" width="11" height="26.4" rx="5.5" fill="#636366"/>' +
-           '<path d="M45 58l9 9M54 58l-9 9" stroke="#FF453A" stroke-width="3.5" stroke-linecap="round"/>' +
-           '<circle cx="34.9" cy="80.1" r="2.4" fill="#fff"/><circle cx="65.7" cy="18.9" r="2.4" fill="#fff"/><circle cx="19.5" cy="64.8" r="2.4" fill="#fff"/>';
-      return s;
-    })(),
-    memory: (function () {
-      var s = '<rect width="100" height="100" rx="14" fill="#FFF0F3"/>';
-      for (var r = 0; r < 2; r++) for (var c = 0; c < 3; c++) {
-        var x = 12 + c * 27, y = 18 + r * 34, open = (r === 0 && c === 1) || (r === 1 && c === 2);
-        s += open
-          ? '<rect x="' + x + '" y="' + y + '" width="22" height="29" rx="4" fill="#fff" stroke="#FFD1DC" stroke-width="1.5"/>' +
-            '<path d="M' + (x + 11) + ' ' + (y + 21) + 'c-7-5-9-8-6-11 2-2 5-1 6 1 1-2 4-3 6-1 3 3 1 6-6 11z" fill="#FF375F"/>'
-          : '<rect x="' + x + '" y="' + y + '" width="22" height="29" rx="4" fill="#5E5CE6"/>' +
-            '<rect x="' + (x + 4) + '" y="' + (y + 4) + '" width="14" height="21" rx="2.5" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="1.5"/>';
-      }
-      return s;
-    })(),
-    vier: (function () {
-      var s = '<rect width="100" height="100" rx="14" fill="#E8F1FF"/><rect x="11" y="16" width="78" height="66" rx="9" fill="#0A84FF"/>' +
-              '<rect x="7" y="80" width="86" height="7" rx="3.5" fill="#0060D0"/>';
-      var chips = { '0,3': 'y', '1,2': 'y', '2,1': 'y', '3,0': 'y', '0,2': 'r', '1,3': 'r', '2,3': 'r', '0,1': 'r', '4,3': 'r', '3,3': 'y', '2,2': 'r' };
-      for (var r = 0; r < 4; r++) for (var c = 0; c < 5; c++) {
-        var k = chips[c + ',' + r];
-        s += '<circle cx="' + (22 + c * 14) + '" cy="' + (27 + r * 15) + '" r="5.6" fill="' + (k === 'y' ? '#FFD60A' : k === 'r' ? '#FF453A' : '#fff') + '"/>';
-      }
-      return s;
-    })()
-  };
-
-  function duelHtml(d) {
-    return '<h2 class="title duel__title">' + fmt(d.titel) + '</h2>' +
-      '<p class="duel__intro">' + fmt(d.intro) + '</p>' +
-      '<div class="duel">' + (d.disziplinen || []).map(function (x) {
-        var svg = DUEL_ICONS[x.bild];
-        return '<button type="button" class="duel__card" aria-pressed="false">' +
-          (svg ? '<svg viewBox="0 0 100 100" aria-hidden="true">' + svg + '</svg>' : '<span class="duel__missing"></span>') +
-          '<span class="duel__name">' + fmt(x.name) + '</span>' +
-          '<span class="duel__check" aria-hidden="true">✓</span>' +
-        '</button>';
-      }).join('') + '</div>' +
-      '<p class="duel__outro">' + fmt(d.schluss) + '</p>';
-  }
-
-  // Antippen wählt eine Disziplin (nochmal tippen hebt die Wahl auf)
-  function wireDuel(sheet) {
-    Array.prototype.forEach.call(sheet.querySelectorAll('.duel__card'), function (card) {
-      card.addEventListener('click', function () {
-        var was = card.classList.contains('is-picked');
-        Array.prototype.forEach.call(sheet.querySelectorAll('.duel__card'), function (x) {
-          x.classList.remove('is-picked');
-          x.setAttribute('aria-pressed', 'false');
-        });
-        if (!was) { card.classList.add('is-picked'); card.setAttribute('aria-pressed', 'true'); haptic(8); }
-      });
-    });
-  }
+  /* ------------------------------------------------------------------ */
+  /* Collage                                                             */
+  /* ------------------------------------------------------------------ */
 
   // Antippen holt ein Foto nach vorne und vergrößert es kurz; nochmal tippen legt es zurück
   function wireCollage(sheet) {
@@ -406,33 +326,6 @@
         if (!was) { ph.style.zIndex = ++z; ph.classList.add('is-front'); haptic(6); }
       });
     });
-  }
-
-  function copyText(text) {
-    if (navigator.clipboard && window.isSecureContext) {
-      return navigator.clipboard.writeText(text).then(function () { return true; }, fallback);
-    }
-    return Promise.resolve(fallback());
-    function fallback() {
-      var ta = document.createElement('textarea');
-      ta.value = text;
-      ta.setAttribute('readonly', '');
-      ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;font-size:16px';
-      document.body.appendChild(ta);
-      ta.select();
-      ta.setSelectionRange(0, text.length);
-      var ok = false;
-      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
-      ta.remove();
-      return ok;
-    }
-  }
-  function selectText(node) {
-    var r = document.createRange();
-    r.selectNodeContents(node);
-    var s = window.getSelection();
-    s.removeAllRanges();
-    s.addRange(r);
   }
 
   /* ------------------------------------------------------------------ */
@@ -511,9 +404,8 @@
     // Umgekehrte Reihenfolge: In 3D-Kontexten (Safari) zählt die DOM-Reihenfolge statt z-index,
     // das aktuelle Blatt muss also nach den folgenden Blättern kommen.
     sheets.slice().reverse().forEach(function (s) { holder.appendChild(s.el); });
-    wireWallet(sheets[special.wallet].el);
     if (special.collage != null) wireCollage(sheets[special.collage].el);
-    if (special.duel != null) wireDuel(sheets[special.duel].el);
+    wireVoice(sheets[special.back].el);
     $('.restart', book).addEventListener('click', restart);
     current = Math.min(current, sheets.length - 1);
     placeSheets();
@@ -546,7 +438,7 @@
     if (book) book.classList.add('is-fitting');
     sheets.forEach(function (s) {
       var body = $('.pg__body', s.el);
-      if (!body || s.el.querySelector('.pg--wallet')) return;
+      if (!body) return;
       var f = 1, min = s.el.querySelector('.tchat') ? 0.5 : 0.74;   // der Chat darf nie scrollen
       body.style.setProperty('--fit', '1');
       while (body.scrollHeight > body.clientHeight + 1 && f > min) {
@@ -561,6 +453,7 @@
   // Grundstellung aller Blätter: umgeblättert (links, unsichtbar) oder flach
   function placeSheets() {
     var n = sheets.length;
+    if (voiceStop && current !== special.back) voiceStop();
     sheets.forEach(function (s, i) {
       var turned = i < current;
       s.el.classList.remove('is-turning');
@@ -671,7 +564,7 @@
     var st = null;
 
     function interactive(t) {
-      return t.closest && t.closest('button, a, input, .envelope, .pass, .bar');
+      return t.closest && t.closest('button, a, input, .bar');
     }
 
     stage.addEventListener('pointerdown', function (e) {
@@ -743,6 +636,8 @@
   /* Musik (nur per Button, kein Autoplay)                               */
   /* ------------------------------------------------------------------ */
 
+  var pauseMusic = function () {};
+
   function setupMusic() {
     var btn = $('#music');
     var audio = new Audio('musik.mp3');
@@ -757,8 +652,10 @@
       btn.setAttribute('aria-label', on ? 'Musik aus' : 'Musik an');
       btn.classList.toggle('is-on', on);
     }
+    pauseMusic = function () { if (!audio.paused) { audio.pause(); setState(false); } };
     btn.addEventListener('click', function () {
       if (audio.paused) {
+        if (voiceStop) voiceStop();
         var p = audio.play();
         setState(true);
         if (p && p.catch) p.catch(function () { setState(false); });
