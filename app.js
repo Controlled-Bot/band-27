@@ -80,8 +80,18 @@
   var sheets = [];        // { el, label }
   var special = {};
 
+  // Kleines Geburtstags-Emoji in einer Ecke der Seite: tr = oben rechts, br = unten rechts
+  function accentHtml(emoji, pos, deg) {
+    if (!emoji) return '';
+    return '<span class="accent accent--' + pos + '" style="--r:' + deg + 'deg" aria-hidden="true">' + esc(emoji) + '</span>';
+  }
+  function acc(key, i) {
+    var v = (D.akzente || {})[key];
+    return Array.isArray(v) ? v[i % v.length] : (i ? '' : v);
+  }
+
   function sheetHtml(label, bodyHtml, cls, opts, n) {
-    return '<div class="face face--front"><div class="pg ' + (cls || '') + '">' +
+    return '<div class="face face--front"><div class="pg ' + (cls || '') + '">' + (opts.accent || '') +
         (opts.head === false ? '' : '<header class="pg__head">' + fmt(opts.head || label) + '</header>') +
         '<div class="pg__body">' + bodyHtml + '</div>' +
         (opts.number === false ? '' : '<footer class="pg__num">' + n + '</footer>') +
@@ -175,7 +185,7 @@
         (img ? '<img class="cover__img" src="' + img + '" alt="" draggable="false" style="object-position:' + esc(c.fokus || '50% 30%') + '">' +
                '<span class="cover__veil" aria-hidden="true"></span>' : '') +
         '<div class="cover__content">' +
-          '<p class="cover__band">' + fmt(c.untertitel) + '</p>' +
+          '<p class="cover__band">' + fmt(c.untertitel) + accentHtml(acc('cover', 0), 'inline', -10) + '</p>' +
           '<h1 class="cover__title">' + fmt(c.titel) + '</h1>' +
         '</div>' +
       '</div>' +
@@ -186,12 +196,16 @@
     sheets = [];
     special = {};
 
-    page(D.widmung.titel || 'Chat', tiktokChatHtml(D.widmung), 'pg--chat', { head: D.widmung.titel || false });
+    page(D.widmung.titel || 'Chat', tiktokChatHtml(D.widmung), 'pg--chat',
+      { head: D.widmung.titel || false, accent: accentHtml(acc('chat', 0), 'br', -8) });
 
     var k = D.kapitel;
     special.confetti = sheets.length;
     chapterPages.forEach(function (html, i) {
-      var el = page(k.label, html, 'pg--chapter', { head: i ? k.label : false });
+      var el = page(k.label, html, 'pg--chapter', {
+        head: i ? k.label : false,
+        accent: accentHtml(acc('kapitel', i), i ? 'br' : 'tr', [9, -7, 6][i % 3])
+      });
       if (!i) {
         var cv = document.createElement('canvas');
         cv.className = 'confetti';
@@ -210,16 +224,19 @@
                  : '<span class="collage__missing">' + esc(f.bild) + '</span>') +
           '</button>';
         }).join('') + '</div>' +
-        '<p class="collage__caption">' + fmt(co.unterschrift) + '</p>', 'pg--collage', { head: false });
+        '<p class="collage__caption">' + fmt(co.unterschrift) + '</p>', 'pg--collage',
+        { head: false, accent: accentHtml(acc('collage', 0), 'tr', -9) });
     }
 
     var a = D.anhang, b = a.brief;
     page(a.label, opener(a.label, a.titel) +
       '<div class="letter"><p class="letter__salute">' + fmt(b.anrede) + '</p>' + paras(b.text) +
-      (b.gruss ? '<p class="signature">' + fmt(b.gruss) + '</p>' : '') + '</div>', '', { head: false });
+      (b.gruss ? '<p class="signature">' + fmt(b.gruss) + '</p>' : '') + '</div>', '',
+      { head: false, accent: accentHtml(acc('brief', 0), 'tr', 8) });
 
     special.wallet = sheets.length;
-    page(a.label, walletHtml(), 'pg--wallet', { head: a.label + ' · ' + (b.gutschein.titel || '') });
+    page(a.label, walletHtml(), 'pg--wallet',
+      { head: a.label + ' · ' + (b.gutschein.titel || ''), accent: accentHtml(acc('gutschein', 0), 'br', -6) });
 
     var r = D.rueckseite;
     page('Rückseite',
@@ -230,7 +247,7 @@
         }).join('') + '</div>' +
         '<div class="back__foot"><button type="button" class="pill pill--ghost restart">Von vorn lesen</button>' +
         '<span class="back__isbn">' + fmt(r.isbn || '') + '</span></div>' +
-      '</div>', 'pg--back', { head: false, number: false });
+      '</div>', 'pg--back', { head: false, number: false, accent: accentHtml(acc('rueckseite', 0), 'tr', 7) });
   }
 
   /* ------------------------------------------------------------------ */

@@ -514,6 +514,30 @@ mark.ph {
 .signature { margin: .6em 0 0; text-align: right; font: italic 400 1.15em/1.2 var(--serif); }
 .letter__salute { font: italic 400 1.12em/1.3 var(--serif) !important; }
 
+/* Geburtstags-Akzente: ein Emoji pro Seite in der Ecke, blendet beim Aufschlagen kurz ein */
+.accent {
+  position: absolute;
+  z-index: 3;
+  font-size: 1.45em;
+  line-height: 1;
+  pointer-events: none;
+  opacity: 0;
+  transform: rotate(var(--r, 0deg)) scale(.6);
+  transition: opacity .5s var(--ease) .2s, transform .7s var(--spring) .2s;
+}
+.sheet:not([inert]) .accent { opacity: 1; transform: rotate(var(--r, 0deg)); }
+.accent--tr { top: 2.6%; right: 4.5%; }
+.accent--br { bottom: 2%; right: 5.5%; }
+.accent--inline {
+  position: relative;
+  display: inline-block;
+  margin-left: .45em;
+  font-size: 2.3em;                   /* relativ zur kleinen Band-Zeile */
+  vertical-align: -.3em;
+  opacity: 1;
+  transform: rotate(var(--r, 0deg));
+}
+
 /* Collage: verstreute Fotos wie auf einem Tisch */
 .pg--collage .pg__body { display: flex; flex-direction: column; overflow: visible; }
 .collage__title {
