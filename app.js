@@ -228,9 +228,10 @@
     var r = D.rueckseite;
     page('Rückseite',
       '<div class="back">' +
-        (r.zahl ? '<span class="back__num" aria-hidden="true">' + esc(r.zahl) + '</span>' : '') +
+        (IMAGES[r.bild] ? '<img class="back__img" src="' + IMAGES[r.bild] + '" alt="" draggable="false"' +
+          (r.fokus ? ' style="object-position:' + esc(r.fokus) + '"' : '') + '>' : '') +
         (r.sprachnachricht ? voiceHtml(r.sprachnachricht) : '') +
-      '</div>', 'pg--back', { head: false, number: false, accent: accentHtml(acc('rueckseite', 0), 'tr', 7) });
+      '</div>', 'pg--back', { head: false, number: false });
     special.back = sheets.length - 1;
   }
 
