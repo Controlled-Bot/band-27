@@ -580,11 +580,12 @@ mark.ph {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  image-orientation: none;            /* Originalausrichtung, keine automatische Drehung */
   -webkit-user-drag: none;
 }
 
 /* Sprachnachricht als Glas-Element (wie im iOS-Kontrollzentrum) */
-.voice { position: absolute; z-index: 2; left: 50%; top: 80%; transform: translate(-50%, -50%); }   /* unteres Drittel, Gesicht bleibt frei */
+.voice { position: absolute; z-index: 2; left: 50%; top: 89.5%; transform: translate(-50%, -50%); }   /* unten, unterhalb der Augen */
 .voice__bubble {
   display: flex;
   align-items: center;
