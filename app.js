@@ -225,6 +225,11 @@
         { head: false, accent: accentHtml(acc('collage', 0), 'tr', -9) });
     }
 
+    if (D.geschenk) {
+      special.gift = sheets.length;
+      page(D.geschenk.label, giftHtml(D.geschenk), 'pg--gift', { head: false, accent: accentHtml(acc('geschenk', 0), 'tr', -8) });
+    }
+
     var r = D.rueckseite;
     page('Rückseite',
       '<div class="back">' +
@@ -306,6 +311,173 @@
     });
 
     voiceStop = function () { if (!audio.paused) audio.pause(); };
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Geschenk-Brief: Umschlag öffnen, Karte mit Code, Emojis und Sound   */
+  /* ------------------------------------------------------------------ */
+
+  function giftHtml(g) {
+    return '<div class="gift">' +
+      '<div class="gift__stage">' +
+        '<span class="gift__env gift__env--back"></span>' +
+        '<div class="gift__card">' +
+          '<p class="gift__title">' + fmt(g.titel) + '</p>' +
+          '<p class="gift__code" data-code="' + esc(g.code) + '">' + fmt(g.code) + '</p>' +
+          '<button type="button" class="gift__copy" tabindex="-1">' +
+            '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V6.5A2.5 2.5 0 0 1 7.5 4H15"/></svg>' +
+            '<span>' + esc(g.buttonText) + '</span></button>' +
+        '</div>' +
+        '<span class="gift__env gift__env--pocket"></span>' +
+        '<span class="gift__env gift__env--flap"></span>' +
+        '<button type="button" class="gift__open" aria-label="Umschlag öffnen"></button>' +
+      '</div>' +
+      '<p class="gift__hint">' + fmt(g.hinweis) + '</p>' +
+    '</div>';
+  }
+
+  function wireGift(sheet) {
+    var gift = $('.gift', sheet), openBtn = $('.gift__open', sheet), copy = $('.gift__copy', sheet);
+    var g = D.geschenk, opened = false;
+
+    openBtn.addEventListener('click', function () {
+      if (opened) return;
+      opened = true;
+      haptic(12);
+      partySound();                                   // direkt im Tap, damit iOS Safari den Ton erlaubt
+      duckMusic(1800);
+      var t = reduceMotion ? 0.1 : 1;
+      gift.classList.add('is-open');
+      setTimeout(function () { gift.classList.add('is-out'); emojiBurst(g.emojis); }, 450 * t);
+      setTimeout(function () { gift.classList.add('is-done'); copy.removeAttribute('tabindex'); }, 1300 * t);
+    });
+
+    copy.addEventListener('click', function () {
+      var label = copy.querySelector('span'), code = $('.gift__code', sheet);
+      copyText(code.getAttribute('data-code')).then(function (ok) {
+        haptic(10);
+        label.textContent = ok ? g.kopiertText : 'Bitte manuell kopieren';
+        copy.classList.toggle('is-copied', ok);
+        if (!ok) selectText(code);
+        setTimeout(function () { label.textContent = g.buttonText; copy.classList.remove('is-copied'); }, 2000);
+      });
+    });
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(function () { return true; }, fallback);
+    }
+    return Promise.resolve(fallback());
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;font-size:16px';
+      document.body.appendChild(ta);
+      ta.select();
+      ta.setSelectionRange(0, text.length);
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      ta.remove();
+      return ok;
+    }
+  }
+  function selectText(node) {
+    var r = document.createRange();
+    r.selectNodeContents(node);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(r);
+  }
+
+  // Emojis steigen einmal von unten nach oben über den ganzen Bildschirm und verschwinden
+  function emojiBurst(list) {
+    if (!list || !list.length) return;
+    var layer = document.createElement('div');
+    layer.className = 'burst';
+    layer.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(layer);
+    var vw = window.innerWidth, vh = window.innerHeight, n = reduceMotion ? 10 : 26, longest = 0;   // ruhiger bei „Bewegung reduzieren“
+    for (var i = 0; i < n; i++) {
+      var el = document.createElement('span');
+      el.textContent = list[i % list.length];
+      var size = 20 + Math.random() * 22, x = Math.random() * (vw - size), drift = (Math.random() - 0.5) * 90;
+      var rot0 = reduceMotion ? 0 : (Math.random() - 0.5) * 40, rot1 = reduceMotion ? 0 : rot0 + (Math.random() - 0.5) * 120;
+      var dur = 1700 + Math.random() * 1000, delay = Math.random() * 500;
+      longest = Math.max(longest, dur + delay);
+      el.style.cssText = 'left:' + x + 'px;font-size:' + size + 'px';
+      layer.appendChild(el);
+      el.animate([
+        { transform: 'translate(0,' + (vh + 40) + 'px) rotate(' + rot0 + 'deg)', opacity: 0 },
+        { opacity: 1, offset: 0.12 },
+        { opacity: 1, offset: 0.75 },
+        { transform: 'translate(' + drift + 'px,' + (-size - 40) + 'px) rotate(' + rot1 + 'deg)', opacity: 0 }
+      ], { duration: dur, delay: delay, easing: 'cubic-bezier(.2,.6,.35,1)', fill: 'both' });
+    }
+    setTimeout(function () { layer.remove(); }, longest + 100);
+  }
+
+  // Partyhorn + Konfetti-Pop, mit Web Audio selbst erzeugt (keine Datei)
+  var audioCtx = null;
+  function partySound() {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    try {
+      audioCtx = audioCtx || new AC();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      var ctx = audioCtx, t0 = ctx.currentTime + 0.02;
+      var master = ctx.createGain();
+      master.gain.value = 0.22;                        // moderate Lautstärke
+      master.connect(ctx.destination);
+
+      // Pop: kurzer Rausch-Knall
+      var len = Math.floor(ctx.sampleRate * 0.12), buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
+      for (var i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+      var pop = ctx.createBufferSource(), popF = ctx.createBiquadFilter(), popG = ctx.createGain();
+      pop.buffer = buf;
+      popF.type = 'bandpass'; popF.frequency.value = 1800; popF.Q.value = 0.8;
+      popG.gain.value = 1.4;
+      pop.connect(popF); popF.connect(popG); popG.connect(master);
+      pop.start(t0);
+
+      // Tröte: zwei leicht verstimmte Sägezähne mit Tonhöhen-Schwung und Vibrato
+      var hornG = ctx.createGain(), hornF = ctx.createBiquadFilter();
+      hornF.type = 'lowpass'; hornF.frequency.value = 2400; hornF.Q.value = 3;
+      hornG.gain.setValueAtTime(0.0001, t0 + 0.08);
+      hornG.gain.exponentialRampToValueAtTime(0.5, t0 + 0.14);
+      hornG.gain.setValueAtTime(0.5, t0 + 0.75);
+      hornG.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.05);
+      hornF.connect(hornG); hornG.connect(master);
+      var lfo = ctx.createOscillator(), lfoG = ctx.createGain();
+      lfo.frequency.value = 9; lfoG.gain.value = 14;
+      lfo.connect(lfoG);
+      [0, 7].forEach(function (cents) {
+        var o = ctx.createOscillator();
+        o.type = 'sawtooth';
+        o.detune.value = cents;
+        o.frequency.setValueAtTime(330, t0 + 0.08);
+        o.frequency.exponentialRampToValueAtTime(470, t0 + 0.3);
+        o.frequency.setValueAtTime(470, t0 + 0.8);
+        o.frequency.exponentialRampToValueAtTime(400, t0 + 1.05);
+        lfoG.connect(o.frequency);
+        o.connect(hornF);
+        o.start(t0 + 0.08);
+        o.stop(t0 + 1.1);
+      });
+      lfo.start(t0 + 0.08);
+      lfo.stop(t0 + 1.1);
+
+      // kleines Konfetti-Knistern hinterher
+      for (var k = 0; k < 6; k++) {
+        var c = ctx.createBufferSource(), cg = ctx.createGain();
+        c.buffer = buf;
+        c.playbackRate.value = 2.5 + Math.random() * 2;
+        cg.gain.value = 0.25;
+        c.connect(cg); cg.connect(master);
+        c.start(t0 + 0.12 + k * 0.07 + Math.random() * 0.04);
+      }
+    } catch (e) { /* ohne Ton weiter */ }
   }
 
   /* ------------------------------------------------------------------ */
@@ -401,6 +573,7 @@
     // das aktuelle Blatt muss also nach den folgenden Blättern kommen.
     sheets.slice().reverse().forEach(function (s) { holder.appendChild(s.el); });
     if (special.collage != null) wireCollage(sheets[special.collage].el);
+    if (special.gift != null) wireGift(sheets[special.gift].el);
     wireVoice(sheets[special.back].el);
     current = Math.min(current, sheets.length - 1);
     placeSheets();
@@ -553,7 +726,7 @@
     var st = null;
 
     function interactive(t) {
-      return t.closest && t.closest('button, a, input, .bar');
+      return t.closest && t.closest('button, a, input, .bar, .gift');
     }
 
     stage.addEventListener('pointerdown', function (e) {
@@ -626,6 +799,7 @@
   /* ------------------------------------------------------------------ */
 
   var pauseMusic = function () {};
+  var duckMusic = function () {};
 
   function setupMusic() {
     var btn = $('#music');
@@ -642,6 +816,14 @@
       btn.classList.toggle('is-on', on);
     }
     pauseMusic = function () { if (!audio.paused) { audio.pause(); setState(false); } };
+    // kurz leiser, solange ein anderer Sound spielt
+    var base = audio.volume, duckTimer = 0;
+    duckMusic = function (ms) {
+      if (audio.paused) return;
+      clearTimeout(duckTimer);
+      audio.volume = base * 0.25;
+      duckTimer = setTimeout(function () { audio.volume = base; }, ms);
+    };
     btn.addEventListener('click', function () {
       if (audio.paused) {
         if (voiceStop) voiceStop();

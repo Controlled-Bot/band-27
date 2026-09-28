@@ -569,6 +569,99 @@ mark.ph {
   transition: opacity .8s var(--ease);
 }
 
+/* Geschenk-Brief */
+.pg--gift .pg__body { display: flex; overflow: visible; }
+.gift { position: relative; flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+.gift__stage { position: relative; width: 100%; aspect-ratio: 1.45; margin-top: 10%; perspective: 900px; }
+.gift__env { position: absolute; display: block; transition: transform .6s var(--ease) .1s, opacity .5s var(--ease) .1s; }
+.gift__env--back {
+  inset: 0;
+  z-index: 1;
+  border-radius: .9em;
+  background: #ECECF0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .06), 0 14px 30px -12px rgba(0, 0, 0, .28);
+}
+.gift__env--pocket {
+  inset: 0;
+  z-index: 3;
+  border-radius: .9em;
+  background: linear-gradient(180deg, #FBFBFD, #F2F2F5);
+  clip-path: polygon(0 0, 50% 54%, 100% 0, 100% 100%, 0 100%);
+  box-shadow: inset 0 0 0 .5px rgba(0, 0, 0, .06);
+}
+.gift__env--flap {
+  top: 0; left: 0; right: 0;
+  height: 58%;
+  z-index: 4;
+  border-radius: .9em .9em 0 0;
+  background: linear-gradient(180deg, #F6F6F8, #E9E9ED);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  transform-origin: 50% 0;
+  transition: transform .5s var(--ease), z-index 0s .25s, opacity .5s var(--ease) .1s;
+}
+.gift.is-open .gift__env--flap { transform: rotateX(180deg); z-index: 1; }
+.gift__open { position: absolute; inset: 0; z-index: 5; border: 0; background: none; cursor: pointer; }
+.gift.is-open .gift__open { display: none; }
+.gift__card {
+  position: absolute;
+  z-index: 2;
+  left: 6%;
+  right: 6%;
+  top: 6%;
+  height: 86%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .55em;
+  padding: .8em;
+  border-radius: .8em;
+  background: #fff;
+  color: #1D1D1F;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .08), 0 10px 26px -10px rgba(0, 0, 0, .3);
+  transition: transform .95s var(--spring), z-index 0s .3s;
+}
+.gift.is-out .gift__card { transform: translateY(-52%) scale(1.05); z-index: 10; }
+.gift.is-done .gift__card { transform: translateY(-4%) scale(1.08); }   /* nach dem Herausgleiten mittig ablegen */
+.gift.is-out .gift__env--back,
+.gift.is-out .gift__env--pocket,
+.gift.is-out .gift__env--flap { transform: translateY(40%); opacity: 0; }
+.gift__title { margin: 0; font: 600 .7em/1.2 var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+.gift__code {
+  margin: 0;
+  font: 700 1.55em/1.15 var(--mono);
+  letter-spacing: .06em;
+  text-align: center;
+  overflow-wrap: anywhere;
+  -webkit-user-select: all;
+  user-select: all;
+}
+.gift__copy {
+  display: flex;
+  align-items: center;
+  gap: .4em;
+  height: 2.4em;
+  padding: 0 1.1em;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font: 600 .78em/1 var(--sans);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .4s var(--ease), background .3s var(--ease);
+}
+.gift__copy svg { width: 1.2em; height: 1.2em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.gift.is-done .gift__copy { opacity: 1; pointer-events: auto; }
+.gift__copy.is-copied { background: #34C759; }
+.gift__hint { margin: 1.4em 0 0; font-size: .78em; color: var(--muted); transition: opacity .3s; }
+.gift.is-open .gift__hint { opacity: 0; }
+
+/* Emoji-Flug beim Öffnen (über dem ganzen Bildschirm) */
+.burst { position: fixed; inset: 0; z-index: 1000; pointer-events: none; overflow: hidden; }
+.burst span { position: absolute; top: 0; line-height: 1; will-change: transform, opacity; }
+
 /* Rückseite: Foto über die ganze Seite, Inhalt bezieht sich auf die ganze Seite */
 .face--front:has(.pg--back) { background: #1D1D1F; }
 .pg--back::before { display: none; }
