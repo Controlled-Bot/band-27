@@ -198,15 +198,20 @@
         $('.face--front', el).appendChild(cv);
       }
     });
-    (k.fotos || []).forEach(function (f, i) {
-      var src = IMAGES[f.bild];
+    var co = k.collage;
+    if (co) {
+      special.collage = sheets.length;
       page(k.label,
-        '<figure class="photo">' +
-          (src ? '<img class="photo__img" src="' + src + '" alt="" draggable="false"' + (f.fokus ? ' style="object-position:' + esc(f.fokus) + '"' : '') + '>'
-               : '<div class="photo__img photo__img--missing"><span>Foto folgt<small>' + esc(f.bild) + '</small></span></div>') +
-          '<figcaption><span class="photo__no">Abb. ' + (i + 1) + '</span>' + fmt(f.text) + '</figcaption>' +
-        '</figure>', 'pg--photo', { head: k.label + ' · ' + k.titel });
-    });
+        '<h2 class="collage__title">' + fmt(co.titel) + '</h2>' +
+        '<div class="collage">' + (co.bilder || []).map(function (f) {
+          var src = IMAGES[f.bild];
+          return '<button type="button" class="collage__photo" aria-label="Foto nach vorne holen">' +
+            (src ? '<img src="' + src + '" alt="" draggable="false"' + (f.fokus ? ' style="object-position:' + esc(f.fokus) + '"' : '') + '>'
+                 : '<span class="collage__missing">' + esc(f.bild) + '</span>') +
+          '</button>';
+        }).join('') + '</div>' +
+        '<p class="collage__caption">' + fmt(co.unterschrift) + '</p>', 'pg--collage', { head: false });
+    }
 
     var a = D.anhang, b = a.brief;
     page(a.label, opener(a.label, a.titel) +
@@ -282,6 +287,18 @@
         btn.classList.toggle('is-done', ok);
         if (!ok) selectText($('.pass__code', sheet));
         setTimeout(function () { label.textContent = g.buttonText; btn.classList.remove('is-done'); }, 2200);
+      });
+    });
+  }
+
+  // Antippen holt ein Foto nach vorne und vergrößert es kurz; nochmal tippen legt es zurück
+  function wireCollage(sheet) {
+    var z = 10;
+    Array.prototype.forEach.call(sheet.querySelectorAll('.collage__photo'), function (ph) {
+      ph.addEventListener('click', function () {
+        var was = ph.classList.contains('is-front');
+        Array.prototype.forEach.call(sheet.querySelectorAll('.collage__photo.is-front'), function (x) { x.classList.remove('is-front'); });
+        if (!was) { ph.style.zIndex = ++z; ph.classList.add('is-front'); haptic(6); }
       });
     });
   }
@@ -390,6 +407,7 @@
     // das aktuelle Blatt muss also nach den folgenden Blättern kommen.
     sheets.slice().reverse().forEach(function (s) { holder.appendChild(s.el); });
     wireWallet(sheets[special.wallet].el);
+    if (special.collage != null) wireCollage(sheets[special.collage].el);
     $('.restart', book).addEventListener('click', restart);
     current = Math.min(current, sheets.length - 1);
     placeSheets();
