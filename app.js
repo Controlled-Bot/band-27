@@ -80,20 +80,88 @@
   var sheets = [];        // { el, label }
   var special = {};
 
-  function page(label, bodyHtml, cls, opts) {
-    opts = opts || {};
-    var n = sheets.length + 1;
-    var el = document.createElement('div');
-    el.className = 'sheet';
-    el.innerHTML =
-      '<div class="face face--front"><div class="pg ' + (cls || '') + '">' +
+  function sheetHtml(label, bodyHtml, cls, opts, n) {
+    return '<div class="face face--front"><div class="pg ' + (cls || '') + '">' +
         (opts.head === false ? '' : '<header class="pg__head">' + fmt(opts.head || label) + '</header>') +
         '<div class="pg__body">' + bodyHtml + '</div>' +
         (opts.number === false ? '' : '<footer class="pg__num">' + n + '</footer>') +
       '</div><span class="shade" aria-hidden="true"></span></div>' +
       '<div class="face face--back"><span class="shade" aria-hidden="true"></span></div>';
+  }
+
+  function page(label, bodyHtml, cls, opts) {
+    opts = opts || {};
+    var el = document.createElement('div');
+    el.className = 'sheet';
+    el.innerHTML = sheetHtml(label, bodyHtml, cls, opts, sheets.length + 1);
     sheets.push({ el: el, label: label });
     return el;
+  }
+
+  /* Kapiteltext auf Buchseiten verteilen: Absätze werden in einer unsichtbaren Seite
+     gleicher Größe gemessen und notfalls zwischen zwei Wörtern umbrochen. So passt jede
+     Seite genau, ohne Scrollen und ohne abgeschnittene Zeilen. */
+  var measureEl = null;
+
+  function paginateChapter() {
+    var k = D.kapitel, list = k.text || [];
+    if (!measureEl) {
+      measureEl = document.createElement('div');
+      measureEl.className = 'book book--measure is-fitting';
+      measureEl.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(measureEl);
+    }
+    var pages = [], body, box, html;
+
+    function newPage() {
+      var first = !pages.length;
+      measureEl.innerHTML = '<div class="sheet">' +
+        sheetHtml(k.label, (first ? opener(k.label, k.titel) : '') + '<div class="chapter"></div>',
+          'pg--chapter', { head: first ? false : k.label }, 1) + '</div>';
+      body = $('.pg__body', measureEl);
+      box = $('.chapter', body);
+      html = [];
+    }
+    function fits() {                         // Textende mit kleinem Puffer gegen Rundungsunterschiede
+      return box.getBoundingClientRect().bottom <= body.getBoundingClientRect().bottom - 3;
+    }
+    function commit() {
+      pages.push((pages.length ? '' : opener(k.label, k.titel)) + '<div class="chapter">' + html.join('') + '</div>');
+    }
+
+    newPage();
+    list.forEach(function (text, i) {
+      var cls = i === 0 ? 'dropcap' : (i === list.length - 1 && list.length > 1 ? 'coda' : '');
+      var words = text.split(' ');
+      while (words.length) {
+        box.insertAdjacentHTML('beforeend', '<p class="' + cls + '">' + fmt(words.join(' ')) + '</p>');
+        var p = box.lastElementChild;
+        if (fits()) { html.push(p.outerHTML); break; }
+        // Größte Wortzahl finden, die noch auf die Seite passt
+        p.classList.add('split');
+        var lo = 0, hi = words.length - 1;
+        while (lo < hi) {
+          var mid = Math.ceil((lo + hi) / 2);
+          p.innerHTML = fmt(words.slice(0, mid).join(' '));
+          if (fits()) lo = mid; else hi = mid - 1;
+        }
+        var take = Math.min(lo, words.length - 4);          // keine einzelnen Wörter oben auf der nächsten Seite
+        if (take < 6 && html.length) {                       // zu wenig Platz: Absatz komplett auf die nächste Seite
+          p.remove();
+        } else {
+          take = Math.max(take, 1);
+          p.innerHTML = fmt(words.slice(0, take).join(' '));
+          html.push(p.outerHTML);
+          words = words.slice(take);
+          cls = (cls === 'dropcap' ? '' : cls) + ' cont';
+        }
+        commit();
+        newPage();
+      }
+    });
+    if (html.length) commit();
+    measureEl.innerHTML = '';
+    return pages;
   }
 
   function opener(label, title) {
@@ -118,16 +186,18 @@
     sheets = [];
     special = {};
 
-    page('Wie alles begann', tiktokChatHtml(D.widmung), 'pg--chat', { head: D.widmung.titel || false });
-
-    var pr = D.prolog;
-    (pr.seiten || []).forEach(function (s, i) {
-      page(pr.label, (i ? '' : opener(pr.label, pr.titel)) + '<div class="prose">' + paras(s, i ? '' : 'lead') + '</div>',
-        '', { head: i ? pr.label : false });
-    });
+    page(D.widmung.titel || 'Chat', tiktokChatHtml(D.widmung), 'pg--chat', { head: D.widmung.titel || false });
 
     var k = D.kapitel;
-    page(k.label, opener(k.label, k.titel) + '<div class="prose">' + paras(k.intro, 'lead') + '</div>', '', { head: false });
+    special.confetti = sheets.length;
+    chapterPages.forEach(function (html, i) {
+      var el = page(k.label, html, 'pg--chapter', { head: i ? k.label : false });
+      if (!i) {
+        var cv = document.createElement('canvas');
+        cv.className = 'confetti';
+        $('.face--front', el).appendChild(cv);
+      }
+    });
     (k.fotos || []).forEach(function (f, i) {
       var src = IMAGES[f.bild];
       page(k.label,
@@ -137,14 +207,6 @@
           '<figcaption><span class="photo__no">Abb. ' + (i + 1) + '</span>' + fmt(f.text) + '</figcaption>' +
         '</figure>', 'pg--photo', { head: k.label + ' · ' + k.titel });
     });
-
-    var ep = D.epilog;
-    special.epilog = sheets.length;
-    var epEl = page(ep.label, opener(ep.label, ep.titel) + '<div class="prose">' + paras(ep.text, 'lead') + '</div>' +
-      (ep.gruss ? '<p class="signature">' + fmt(ep.gruss) + '</p>' : ''), '', { head: false });
-    var cv = document.createElement('canvas');
-    cv.className = 'confetti';
-    $('.face--front', epEl).appendChild(cv);
 
     var a = D.anhang, b = a.brief;
     page(a.label, opener(a.label, a.titel) +
@@ -298,10 +360,10 @@
   /* ------------------------------------------------------------------ */
 
   var book, cover, stage, isOpen = false, current = 0, animating = false;
+  var chapterPages = null;
   var TURN_MS = 720;
 
   function buildBook() {
-    buildPages();
     stage = $('#stage');
     book = $('#book');
     book.innerHTML =
@@ -310,21 +372,38 @@
       '<div class="book__pages"></div>' +
       '<div class="cover" role="button" tabindex="0" aria-label="Buch öffnen">' + coverHtml() + '</div>';
     cover = $('.cover', book);
-    var holder = $('.book__pages', book);
-    // Umgekehrte Reihenfolge: In 3D-Kontexten (Safari) zählt die DOM-Reihenfolge statt z-index,
-    // das aktuelle Blatt muss also nach den folgenden Blättern kommen.
-    sheets.slice().reverse().forEach(function (s) { holder.appendChild(s.el); });
-
-    wireWallet(sheets[special.wallet].el);
-    $('.restart', book).addEventListener('click', restart);
 
     stage.hidden = false;
     layout();
-    placeSheets();
     setupGestures();
     window.addEventListener('resize', debounce(layout, 150));
-    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll);
-    window.addEventListener('load', fitAll);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(refresh);
+    window.addEventListener('load', refresh);
+  }
+
+  // Blätter (neu) erzeugen und einsetzen
+  function mountSheets() {
+    buildPages();
+    var holder = $('.book__pages', book);
+    holder.innerHTML = '';
+    // Umgekehrte Reihenfolge: In 3D-Kontexten (Safari) zählt die DOM-Reihenfolge statt z-index,
+    // das aktuelle Blatt muss also nach den folgenden Blättern kommen.
+    sheets.slice().reverse().forEach(function (s) { holder.appendChild(s.el); });
+    wireWallet(sheets[special.wallet].el);
+    $('.restart', book).addEventListener('click', restart);
+    current = Math.min(current, sheets.length - 1);
+    placeSheets();
+  }
+
+  // Nach Größen- oder Schriftänderung: Kapitel neu umbrechen (nur wenn sich etwas ändert), dann Texte einpassen
+  function refresh() {
+    if (animating) { setTimeout(refresh, 400); return; }
+    var pages = paginateChapter();
+    if (!chapterPages || pages.join('|') !== chapterPages.join('|')) {
+      chapterPages = pages;
+      mountSheets();
+    }
+    fitAll();
   }
 
   function layout() {
@@ -335,7 +414,7 @@
     var root = document.documentElement.style;
     root.setProperty('--bw', w + 'px');
     root.setProperty('--bh', Math.floor(w * 1.45) + 'px');
-    fitAll();
+    refresh();
   }
 
   // Texte an die Seitengröße anpassen (notfalls scrollt die Seite)
@@ -379,9 +458,9 @@
   }
 
   function onArrive() {
-    if (current === special.epilog) {
+    if (current === special.confetti) {
       var cv = $('.confetti', sheets[current].el);
-      setTimeout(function () { if (current === special.epilog) confetti(cv); }, 200);
+      setTimeout(function () { if (current === special.confetti) confetti(cv); }, 200);
     }
   }
 
