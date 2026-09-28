@@ -1,19 +1,16 @@
-/* Band 27: Sperrbildschirm, Entschlüsseln, 3D-Buch, Wallet-Karte, Konfetti, Musik.
-   Die Inhalte stehen verschlüsselt in inhalt.enc.js (Quelle: inhalt/data.js). */
+/* Band 27: 3D-Buch, Wallet-Karte, Konfetti, Musik.
+   Die Inhalte stehen in inhalt.js (erzeugt aus inhalt/data.js). */
 (function () {
   'use strict';
 
-  var ENC = window.BUCH_ENC;
-  var KEY_STORE = 'band27-key';
   var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var D = null, IMAGES = {}, cryptoKey = null;
+  var D = null, IMAGES = {};
 
   /* ------------------------------------------------------------------ */
   /* Helfer                                                              */
   /* ------------------------------------------------------------------ */
 
   function $(sel, root) { return (root || document).querySelector(sel); }
-  function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
@@ -22,6 +19,7 @@
   }
   function fmt(s) {
     return esc(s)
+      .replace(/\n/g, '<br>')
       .replace(/\*([^*]+)\*/g, '<em>$1</em>')
       .replace(/\[([^\]]+)\]/g, '<mark class="ph">[$1]</mark>');
   }
@@ -38,168 +36,28 @@
       return '<div class="imsg imsg--' + (m.von === 'ich' ? 'me' : 'them') + '">' + fmt(m.text) + '</div>';
     }).join('') + '</div>';
   }
-  function fromB64(s) {
-    var bin = atob(s), out = new Uint8Array(bin.length);
-    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-    return out;
-  }
-  function toB64(buf) {
-    var b = new Uint8Array(buf), s = '';
-    for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
-    return btoa(s);
-  }
   function haptic(ms) {
     if (navigator.vibrate) { try { navigator.vibrate(ms || 8); } catch (e) { /* egal */ } }
   }
-  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
   function debounce(fn, ms) {
     var t;
     return function () { clearTimeout(t); t = setTimeout(fn, ms); };
   }
 
   /* ------------------------------------------------------------------ */
-  /* Krypto                                                              */
+  /* Start                                                               */
   /* ------------------------------------------------------------------ */
 
-  function deriveKey(password) {
-    var enc = new TextEncoder().encode(String(password).trim().toLowerCase());
-    return crypto.subtle.importKey('raw', enc, 'PBKDF2', false, ['deriveKey']).then(function (base) {
-      return crypto.subtle.deriveKey(
-        { name: 'PBKDF2', salt: fromB64(ENC.salt), iterations: ENC.iter, hash: 'SHA-256' },
-        base, { name: 'AES-GCM', length: 256 }, true, ['decrypt']);
-    });
-  }
-  function decryptPayload(key) {
-    return crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(ENC.iv) }, key, fromB64(ENC.data))
-      .then(function (buf) { return JSON.parse(new TextDecoder().decode(buf)); });
-  }
-  function remember(key) {
-    crypto.subtle.exportKey('raw', key).then(function (raw) {
-      try { sessionStorage.setItem(KEY_STORE + ENC.salt, toB64(raw)); } catch (e) { /* egal */ }
-    });
-  }
-  function storedKey() {
-    var raw = null;
-    try { raw = sessionStorage.getItem(KEY_STORE + ENC.salt); } catch (e) { /* egal */ }
-    if (!raw) return Promise.reject();
-    return crypto.subtle.importKey('raw', fromB64(raw), { name: 'AES-GCM' }, true, ['decrypt']);
-  }
-
-  /* ------------------------------------------------------------------ */
-  /* Sperrbildschirm                                                     */
-  /* ------------------------------------------------------------------ */
-
-  var KEYS = [['1', ''], ['2', 'ABC'], ['3', 'DEF'], ['4', 'GHI'], ['5', 'JKL'], ['6', 'MNO'],
-              ['7', 'PQRS'], ['8', 'TUV'], ['9', 'WXYZ'], null, ['0', ''], null];
-
-  function setupLock() {
-    var lock = $('#lock'), msg = $('#lock-msg'), dots = $('#dots'), del = $('#lock-del');
-    var entry = '', busy = false;
-
-    if (!ENC || !window.crypto || !crypto.subtle) {
-      msg.textContent = !ENC ? 'Inhalt fehlt. Bitte zuerst "Website bauen" ausführen.' : 'Bitte die Seite über https öffnen.';
-      $('#keypad').hidden = true;
-      del.hidden = true;
+  function start() {
+    var data = window.BUCH;
+    if (!data) {
+      document.body.textContent = 'Inhalt fehlt. Bitte zuerst "Website bauen" ausführen.';
       return;
     }
-    if (ENC.hint) { $('#lock-hint').textContent = ENC.hint; $('#lock-hint').hidden = false; }
-
-    storedKey().then(function (key) {
-      return decryptPayload(key).then(function (p) { cryptoKey = key; start(p, true); });
-    }).catch(function () { /* Code nötig */ });
-
-    function attempt(value) {
-      busy = true;
-      lock.classList.add('is-busy');
-      msg.textContent = '';
-      return deriveKey(value).then(function (key) {
-        return decryptPayload(key).then(function (p) {
-          cryptoKey = key;
-          remember(key);
-          haptic(12);
-          lock.classList.remove('is-busy');
-          lock.classList.add('is-ok');
-          return wait(260).then(function () { start(p, false); });
-        });
-      }).catch(function () {
-        busy = false;
-        lock.classList.remove('is-busy');
-        haptic([30, 40, 30]);
-        msg.textContent = 'Falscher Code';
-        lock.classList.remove('is-wrong');
-        void lock.offsetWidth;
-        lock.classList.add('is-wrong');
-        return wait(450).then(function () { entry = ''; render(); });
-      });
-    }
-
-    if (!ENC.numeric) {
-      // Passwort mit Buchstaben: klassisches Eingabefeld
-      $('#keypad').hidden = true;
-      del.hidden = true;
-      dots.hidden = true;
-      var form = $('#lock-form'), input = $('#lock-input');
-      form.hidden = false;
-      $('.lock__title').textContent = 'Passwort eingeben';
-      form.addEventListener('submit', function (e) {
-        e.preventDefault();
-        if (busy || !input.value.trim()) return;
-        input.blur();
-        attempt(input.value).then(function () { input.value = ''; });
-      });
-      return;
-    }
-
-    var len = ENC.len || 4;
-    dots.innerHTML = new Array(len + 1).join('<span class="dot"></span>');
-    var pad = $('#keypad');
-    pad.innerHTML = KEYS.map(function (k) {
-      if (!k) return '<span class="key key--empty"></span>';
-      return '<button type="button" class="key" data-digit="' + k[0] + '" aria-label="' + k[0] + '">' +
-        '<span class="key__num">' + k[0] + '</span>' + (k[1] ? '<span class="key__abc">' + k[1] + '</span>' : '') + '</button>';
-    }).join('');
-
-    function render() {
-      $$('.dot', dots).forEach(function (d, i) { d.classList.toggle('is-filled', i < entry.length); });
-      del.classList.toggle('is-visible', entry.length > 0);
-    }
-
-    function press(d) {
-      if (busy || entry.length >= len) return;
-      haptic(6);
-      entry += d;
-      render();
-      if (entry.length === len) setTimeout(function () { attempt(entry); }, 120);
-    }
-
-    pad.addEventListener('click', function (e) {
-      var k = e.target.closest('.key[data-digit]');
-      if (k) press(k.getAttribute('data-digit'));
-    });
-    del.addEventListener('click', function () {
-      if (busy || !entry) return;
-      entry = entry.slice(0, -1);
-      render();
-    });
-    document.addEventListener('keydown', function onKey(e) {
-      if (!document.body.contains(lock)) { document.removeEventListener('keydown', onKey); return; }
-      if (/^\d$/.test(e.key)) press(e.key);
-      else if (e.key === 'Backspace' && !busy) { entry = entry.slice(0, -1); render(); }
-    });
-    render();
-  }
-
-  function start(payload, instant) {
-    D = payload.content;
-    IMAGES = payload.images || {};
-    var lock = $('#lock');
+    D = data.content;
+    IMAGES = data.images || {};
     buildBook();
-    if (instant) lock.remove();
-    else {
-      lock.classList.add('is-leaving');
-      setTimeout(function () { lock.remove(); }, 700);
-    }
-    if (payload.hasAudio) setupMusic();
+    if (data.hasAudio) setupMusic();
   }
 
   /* ------------------------------------------------------------------ */
@@ -663,32 +521,24 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* Musik (verschlüsselt, wird im Hintergrund entschlüsselt)            */
+  /* Musik (nur per Button, kein Autoplay)                               */
   /* ------------------------------------------------------------------ */
 
   function setupMusic() {
-    var btn = $('#music'), audio = null;
+    var btn = $('#music');
+    var audio = new Audio('musik.mp3');
+    audio.loop = true;
+    audio.preload = 'auto';
+    audio.volume = D.musik && D.musik.lautstaerke != null ? D.musik.lautstaerke : 0.5;
+    audio.addEventListener('error', function () { btn.hidden = true; });
+    btn.hidden = false;
+
     function setState(on) {
       btn.setAttribute('aria-pressed', on ? 'true' : 'false');
       btn.setAttribute('aria-label', on ? 'Musik aus' : 'Musik an');
       btn.classList.toggle('is-on', on);
     }
-    fetch('musik.enc').then(function (r) {
-      if (!r.ok) throw new Error('404');
-      return r.arrayBuffer();
-    }).then(function (buf) {
-      var bytes = new Uint8Array(buf);
-      return crypto.subtle.decrypt({ name: 'AES-GCM', iv: bytes.slice(0, 12) }, cryptoKey, bytes.slice(12));
-    }).then(function (plain) {
-      audio = new Audio(URL.createObjectURL(new Blob([plain], { type: 'audio/mpeg' })));
-      audio.loop = true;
-      audio.preload = 'auto';
-      audio.volume = D.musik && D.musik.lautstaerke != null ? D.musik.lautstaerke : 0.5;
-      btn.hidden = false;
-    }).catch(function () { btn.hidden = true; });
-
     btn.addEventListener('click', function () {
-      if (!audio) return;
       if (audio.paused) {
         var p = audio.play();
         setState(true);
@@ -697,5 +547,5 @@
     });
   }
 
-  setupLock();
+  start();
 })();

@@ -15,33 +15,12 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Inter:wght@300;400;500;600&display=swap">
-  <link rel="stylesheet" href="style.css?v=91503ff7">
+  <link rel="stylesheet" href="style.css?v=ec2b0193">
 </head>
 <body>
 
-  <!-- Sperrbildschirm -->
-  <main id="lock" class="lock">
-    <div class="lock__top">
-      <svg class="lock__icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8.5 10.5V7.8a3.5 3.5 0 0 1 7 0v2.7"/></svg>
-      <h1 class="lock__title">Code eingeben</h1>
-      <p id="lock-sub" class="lock__sub">Dieses Buch ist noch verschlossen.</p>
-      <div id="dots" class="dots" aria-hidden="true"></div>
-      <form id="lock-form" class="lock__form" autocomplete="off" hidden>
-        <label class="visually-hidden" for="lock-input">Passwort</label>
-        <input id="lock-input" class="lock__input" type="password" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Passwort" enterkeyhint="go">
-        <button class="lock__go" type="submit">Öffnen</button>
-      </form>
-      <p id="lock-msg" class="lock__msg" role="status" aria-live="polite"></p>
-    </div>
-    <div id="keypad" class="keypad" role="group" aria-label="Ziffernblock"></div>
-    <div class="lock__bottom">
-      <p id="lock-hint" class="lock__hint" hidden></p>
-      <button id="lock-del" class="lock__del" type="button">Löschen</button>
-    </div>
-  </main>
-
   <!-- Buch -->
-  <div id="stage" class="stage" hidden>
+  <div id="stage" class="stage">
     <div id="book" class="book"></div>
     <p id="open-hint" class="open-hint">Zum Öffnen tippen</p>
   </div>
@@ -63,7 +42,7 @@
     </button>
   </nav>
 
-  <script src="inhalt.enc.js?v=3987efcf"></script>
-  <script src="app.js?v=e6115854"></script>
+  <script src="inhalt.js?v=12668103"></script>
+  <script src="app.js?v=8a365b5f"></script>
 </body>
 </html>

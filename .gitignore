@@ -1,4 +1,4 @@
-# Private Originale: niemals hochladen, nur verschlüsselt über website/inhalt.enc.js
+# Originale und Werkzeuge: nicht hochladen (Fotos stecken eingebettet in inhalt.js)
 inhalt/
 images/
 *.jpg
@@ -7,5 +7,4 @@ images/
 *.webp
 *.heic
 *.gif
-*.mp3
 tools/node_modules/
