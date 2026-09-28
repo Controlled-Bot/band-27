@@ -348,7 +348,7 @@
       '<div class="gift">' +
         '<div class="gift__stage">' +
           '<button type="button" class="gift__box" aria-label="Geschenk öffnen">' +
-            '<span class="gift__shadow" aria-hidden="true"></span>' + GIFT_BOX +
+            '<span class="gift__shadow" aria-hidden="true"></span><span class="gift__hop">' + GIFT_BOX + '</span>' +
           '</button>' +
           '<div class="gift__card">' +
             '<p class="gift__title">' + fmt(g.titel) + '</p>' +

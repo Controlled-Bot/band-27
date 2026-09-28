@@ -594,8 +594,11 @@ mark.ph {
   width: 100%;
   overflow: visible;
   filter: drop-shadow(0 .5em .7em rgba(0, 40, 80, .18));
-  transform-origin: 50% 100%;
-  animation: giftHop 2s cubic-bezier(.3, 0, .3, 1) infinite;
+}
+/* Einzige Animation: ruhiges Auf und Ab auf dem Wrapper um die Box */
+.gift__hop {
+  display: block;
+  animation: giftHop 3.5s cubic-bezier(.4, 0, .2, 1) infinite;
 }
 .gift__shadow {
   position: absolute;
@@ -605,22 +608,15 @@ mark.ph {
   height: .7em;
   border-radius: 50%;
   background: radial-gradient(closest-side, rgba(0, 30, 60, .28), rgba(0, 30, 60, 0));
-  animation: giftShadow 2s cubic-bezier(.3, 0, .3, 1) infinite;
 }
-/* kleiner Sprung mit Squash, dann Pause */
+/* 0–60 % Ruhe, 60–75 % hoch, 75–90 % runter, 90–100 % Ruhe */
 @keyframes giftHop {
-  0%, 55%, 100% { transform: translateY(0) scale(1, 1); }
-  63% { transform: translateY(0) scale(1.07, .9); }
-  75% { transform: translateY(-16%) scale(.97, 1.04); }
-  86% { transform: translateY(0) scale(1.05, .93); }
-  93% { transform: translateY(0) scale(.99, 1.01); }
-}
-@keyframes giftShadow {
-  0%, 55%, 100% { transform: scaleX(1); opacity: 1; }
-  75% { transform: scaleX(.7); opacity: .5; }
+  0%, 60% { transform: translateY(0); }
+  75% { transform: translateY(-10px); }
+  90%, 100% { transform: translateY(0); }
 }
 .gift__lid, .gift__body { transform-box: fill-box; transform-origin: 50% 100%; transition: transform .6s var(--spring), opacity .45s var(--ease); }
-.gift.is-open .gift__svg, .gift.is-open .gift__shadow { animation: none; }
+.gift.is-open .gift__hop { animation: none; }
 .gift.is-open .gift__lid { transform: translate(18%, -120%) rotate(24deg); opacity: 0; }
 .gift.is-out .gift__box { pointer-events: none; }
 .gift.is-out .gift__body { transform: translateY(12%) scale(.9); opacity: 0; transition-delay: .25s; }
@@ -829,6 +825,9 @@ mark.ph {
    ===================================================================== */
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .15s !important; }
+  /* Endlos-Animationen nicht in 0,01 ms-Schleifen laufen lassen (das flackert), sondern einmal */
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .15s !important; }
   .book { animation: none; }
+  /* das ruhige Auf und Ab des Geschenks bleibt, es zeigt, dass man tippen kann */
+  .gift__hop { animation-duration: 3.5s !important; animation-iteration-count: infinite !important; }
 }
