@@ -518,7 +518,7 @@ mark.ph {
 .accent {
   position: absolute;
   z-index: 3;
-  font-size: 1.45em;
+  font-size: 2.3em;                   /* ca. 35px auf dem iPhone */
   line-height: 1;
   pointer-events: none;
   opacity: 0;
@@ -526,13 +526,13 @@ mark.ph {
   transition: opacity .5s var(--ease) .2s, transform .7s var(--spring) .2s;
 }
 .sheet:not([inert]) .accent { opacity: 1; transform: rotate(var(--r, 0deg)); }
-.accent--tr { top: 2.6%; right: 4.5%; }
-.accent--br { bottom: 2%; right: 5.5%; }
+.accent--tr { top: 1.6%; right: 3.5%; }
+.accent--br { bottom: 1.2%; right: 3.5%; }
 .accent--inline {
   position: relative;
   display: inline-block;
   margin-left: .45em;
-  font-size: 2.3em;                   /* relativ zur kleinen Band-Zeile */
+  font-size: 3.5em;                   /* relativ zur kleinen Band-Zeile */
   vertical-align: -.3em;
   opacity: 1;
   transform: rotate(var(--r, 0deg));
@@ -576,6 +576,9 @@ mark.ph {
 /* Positionen in % der Collage-Fläche, Gesichter bleiben frei */
 .collage__photo:nth-child(1) { left: 0;   top: 0;   width: 58%; height: 58%; --r: -6deg; z-index: 1; }
 .collage__photo:nth-child(2) { right: 0;  top: 16%; width: 50%; height: 50%; --r: 5deg;  z-index: 2; }
+/* Ganzes Bild im Originalzustand: Rahmen im Seitenverhältnis des Bildes, nichts abgeschnitten oder gedreht */
+.collage__photo--full { height: auto !important; }
+.collage__photo--full img { height: auto; object-fit: contain; image-orientation: none; }
 .collage__photo:nth-child(3) { left: 8%;  bottom: 1%; width: 62%; height: 38%; --r: -2.5deg; z-index: 3; }
 .collage__photo.is-front {
   transform: rotate(0deg) scale(1.16);

@@ -216,10 +216,10 @@
     if (co) {
       special.collage = sheets.length;
       page(k.label,
-        '<h2 class="collage__title">' + fmt(co.titel) + '</h2>' +
+        (co.titel ? '<h2 class="collage__title">' + fmt(co.titel) + '</h2>' : '') +
         '<div class="collage">' + (co.bilder || []).map(function (f) {
           var src = IMAGES[f.bild];
-          return '<button type="button" class="collage__photo" aria-label="Foto nach vorne holen">' +
+          return '<button type="button" class="collage__photo' + (f.ganz ? ' collage__photo--full' : '') + '" aria-label="Foto nach vorne holen">' +
             (src ? '<img src="' + src + '" alt="" draggable="false"' + (f.fokus ? ' style="object-position:' + esc(f.fokus) + '"' : '') + '>'
                  : '<span class="collage__missing">' + esc(f.bild) + '</span>') +
           '</button>';
