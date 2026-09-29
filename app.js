@@ -64,8 +64,21 @@
     }
     D = data.content;
     IMAGES = data.images || {};
+    preloadImages();
     buildBook();
     if (data.hasAudio) setupMusic();
+  }
+
+  // Alle Fotos sofort dekodieren und die Objekte behalten, damit beim Blättern nichts nachlädt oder flackert
+  var preloaded = [];
+  function preloadImages() {
+    Object.keys(IMAGES).forEach(function (k) {
+      if (!IMAGES[k]) return;
+      var im = new Image();
+      im.src = IMAGES[k];
+      if (im.decode) im.decode().catch(function () { /* egal */ });
+      preloaded.push(im);
+    });
   }
 
   /* ------------------------------------------------------------------ */
@@ -93,8 +106,8 @@
         (opts.head === false ? '' : '<header class="pg__head">' + fmt(opts.head || label) + '</header>') +
         '<div class="pg__body">' + bodyHtml + '</div>' +
         (opts.number === false ? '' : '<footer class="pg__num">' + n + '</footer>') +
-      '</div><span class="shade" aria-hidden="true"></span></div>' +
-      '<div class="face face--back"><span class="shade" aria-hidden="true"></span></div>';
+      '</div><span class="shade shade--under" aria-hidden="true"></span><span class="shade shade--turn" aria-hidden="true"></span></div>' +
+      '<div class="face face--back"><span class="shade shade--turn" aria-hidden="true"></span></div>';
   }
 
   function page(label, bodyHtml, cls, opts) {
@@ -702,7 +715,6 @@
 
   var book, cover, stage, isOpen = false, current = 0, animating = false;
   var chapterPages = null;
-  var TURN_MS = 720;
 
   function buildBook() {
     stage = $('#stage');
@@ -727,9 +739,7 @@
     buildPages();
     var holder = $('.book__pages', book);
     holder.innerHTML = '';
-    // Umgekehrte Reihenfolge: In 3D-Kontexten (Safari) zählt die DOM-Reihenfolge statt z-index,
-    // das aktuelle Blatt muss also nach den folgenden Blättern kommen.
-    sheets.slice().reverse().forEach(function (s) { holder.appendChild(s.el); });
+    sheets.forEach(function (s) { holder.appendChild(s.el); });   // Reihenfolge egal, die Ebenen regelt z-index
     if (special.collage != null) wireCollage(sheets[special.collage].el);
     if (special.gift != null) wireGift(sheets[special.gift].el);
     wireVoice(sheets[special.back].el);
@@ -778,28 +788,116 @@
     if (book) { void book.offsetWidth; book.classList.remove('is-fitting'); }
   }
 
-  // Grundstellung aller Blätter: umgeblättert (links, unsichtbar) oder flach
+  /* Umblättern
+     - Nur das drehende Blatt ist 3D (rotateY um den Buchrücken), alle anderen liegen flach.
+       Der Stapel ist kein gemeinsamer 3D-Kontext mehr, so gilt z-index und nichts flackert.
+     - Animiert werden ausschließlich transform und opacity per Web Animations API, die laufen
+       auf dem Compositor (GPU) und ruckeln nicht, auch wenn der Main-Thread kurz beschäftigt ist.
+     - Beim Wischen wird derselbe Zustand direkt gesetzt (frameAt), die Animation danach startet
+       exakt an dieser Stelle. */
+
+  var TURN_MS = 650;
+  var TURN_EASE = 'cubic-bezier(0.645, 0.045, 0.355, 1)';
+  var RELEASE_EASE = 'cubic-bezier(0.22, 0.61, 0.36, 1)';   // nach dem Loslassen: startet mit Schwung, kein Stocken
+  var turnAnims = [];
+
+  function parts(s) {
+    if (!s.parts) {
+      s.parts = {
+        sheet: s.el,
+        front: $('.face--front', s.el),
+        back: $('.face--back', s.el),
+        turnF: $('.face--front > .shade--turn', s.el),
+        turnB: $('.face--back > .shade--turn', s.el),
+        under: $('.face--front > .shade--under', s.el)
+      };
+    }
+    return s.parts;
+  }
+
+  // Zustand bei Fortschritt p (0 = flach, 1 = umgeblättert)
+  function frameAt(p) {
+    var a = Math.PI * p;
+    return {
+      sheet: { transform: 'rotateY(' + (-180 * p).toFixed(2) + 'deg)' },
+      front: { opacity: p < .5 ? 1 : 0 },                                  // Vorderseite ab 90° weg (auch gegen Safari-Backface-Fehler)
+      back: { opacity: p <= .5 ? 0 : (p > .84 ? Math.max(0, (1 - p) / .16) : 1) },   // Rückseite, am Ende ausblenden
+      turnF: { opacity: Math.min(1, p * 2) },                              // drehende Seite dunkelt zur Kante hin ab
+      turnB: { opacity: Math.min(1, (1 - p) * 2) },                        // Rückseite hellt beim Ablegen auf
+      under: { transform: 'translateX(' + (Math.cos(a) * 100).toFixed(2) + '%)', opacity: Math.sin(a) }   // Schatten folgt der Blattkante
+    };
+  }
+
+  function applyFrame(t, p) {
+    var f = frameAt(p), P = parts(t.s), U = t.u ? parts(t.u) : null;
+    ['sheet', 'front', 'back', 'turnF', 'turnB'].forEach(function (k) {
+      for (var prop in f[k]) P[k].style[prop] = f[k][prop];
+    });
+    if (U) { U.under.style.transform = f.under.transform; U.under.style.opacity = f.under.opacity; }
+  }
+
+  // Keyframes aus Stützpunkten zwischen p0 und p1 (inkl. der Umschaltpunkte, damit sie scharf bleiben)
+  function runTurn(t, p0, p1, ms, easing, done) {
+    var ps = [];
+    for (var i = 0; i <= 12; i++) ps.push(p0 + (p1 - p0) * i / 12);
+    [.4999, .5001, .84].forEach(function (x) { if ((x - p0) * (x - p1) < 0) ps.push(x); });
+    ps.sort(function (a, b) { return p1 > p0 ? a - b : b - a; });
+    var span = p1 - p0 || 1, frames = {};
+    ps.forEach(function (p) {
+      var f = frameAt(p), off = Math.min(1, Math.max(0, (p - p0) / span));
+      for (var k in f) (frames[k] = frames[k] || []).push(Object.assign({ offset: off }, f[k]));
+    });
+    var P = parts(t.s), U = t.u ? parts(t.u) : null;
+    var opts = { duration: ms, easing: easing, fill: 'forwards' };
+    turnAnims = ['sheet', 'front', 'back', 'turnF', 'turnB'].map(function (k) { return P[k].animate(frames[k], opts); });
+    if (U) turnAnims.push(U.under.animate(frames.under, opts));
+    turnAnims[0].onfinish = done;
+  }
+
+  // Blatt zum Drehen vorbereiten: dir 1 = weiter (aktuelles Blatt), -1 = zurück (vorheriges Blatt)
+  function beginTurn(dir) {
+    var idx = dir > 0 ? current : current - 1;
+    var t = { dir: dir, s: sheets[idx], u: dir > 0 ? sheets[current + 1] : sheets[current] };
+    stopLeaves();                                   // Blätter-Animation pausiert, Main-Thread bleibt frei
+    t.s.el.style.visibility = 'visible';
+    t.s.el.style.zIndex = 10;
+    t.s.el.classList.add('is-turning');
+    if (t.u) t.u.el.style.visibility = 'visible';
+    if (!reduceMotion) applyFrame(t, dir > 0 ? 0 : 1);
+    return t;
+  }
+
+  function endTurn(t, completed) {
+    if (completed) current += t.dir;
+    placeSheets();                                  // Endzustand setzen, erst dann Animationen lösen: kein Aufblitzen
+    turnAnims.forEach(function (a) { a.cancel(); });
+    turnAnims = [];
+    animating = false;
+    if (completed) onArrive();
+  }
+
+  // Grundstellung: aktuelles Blatt oben, nächstes fertig darunter, alle anderen unsichtbar
   function placeSheets() {
-    var n = sheets.length;
     if (voiceStop && current !== special.back) voiceStop();
     sheets.forEach(function (s, i) {
-      var turned = i < current;
+      var P = parts(s);
       s.el.classList.remove('is-turning');
-      s.el.style.transition = 'none';
-      s.el.style.setProperty('--p', turned ? '1' : '0');
-      s.el.style.zIndex = turned ? i : n - i;
-      s.el.style.visibility = (!turned && i <= current + 1) ? 'visible' : 'hidden';
+      s.el.style.transform = '';
+      s.el.style.opacity = '';
+      s.el.style.zIndex = i === current ? 3 : 2;
+      s.el.style.visibility = (i === current || i === current + 1) ? 'visible' : 'hidden';
+      P.front.style.opacity = P.back.style.opacity = P.turnF.style.opacity = P.turnB.style.opacity = '';
+      P.under.style.opacity = P.under.style.transform = '';
       if (i === current) s.el.removeAttribute('inert'); else s.el.setAttribute('inert', '');
     });
     leavesFor(current);
-    void book.offsetWidth;
-    sheets.forEach(function (s) { s.el.style.transition = ''; });
     updateBar();
   }
 
   function updateBar() {
     $('#bar-label').textContent = sheets[current] ? sheets[current].label : '';
     $('#bar-fill').style.transform = 'scaleX(' + ((current + 1) / sheets.length) + ')';
+    $('#prev').disabled = !isOpen;
     $('#next').disabled = current >= sheets.length - 1;
   }
 
@@ -820,6 +918,7 @@
     leavesFor(current);
     var bar = $('#bar');
     bar.hidden = false;
+    updateBar();
     requestAnimationFrame(function () { requestAnimationFrame(function () { bar.classList.add('is-shown'); }); });
     setTimeout(function () {
       cover.classList.add('is-gone');
@@ -840,98 +939,112 @@
     setTimeout(function () { $('#bar').hidden = true; animating = false; }, reduceMotion ? 50 : 1100);
   }
 
-  function setTurn(s, p, instant) {
-    if (instant) s.el.style.transition = 'none';
-    s.el.style.setProperty('--p', p.toFixed(4));
+  function canTurn(dir) {
+    return isOpen && (dir > 0 ? current < sheets.length - 1 : current > 0);
   }
 
-  function prepareTurn(idx) {
-    for (var i = idx - 1; i <= idx + 1; i++) if (sheets[i] && i >= current - 1) sheets[i].el.style.visibility = 'visible';
-    sheets[idx].el.style.zIndex = 500;
-    sheets[idx].el.classList.add('is-turning');
-  }
-
-  // Blatt drehen: dir 1 = weiter, -1 = zurück; p0 = Startfortschritt (beim Wischen)
-  function turn(dir, p0) {
-    if (animating) return;
-    var idx = dir > 0 ? current : current - 1;
-    var s = sheets[idx];
-    if (!s) return;
+  // Ganzes Blatt umblättern (Tippen, Pfeile, Tastatur). Während einer Animation wird nichts angenommen.
+  function turn(dir) {
+    if (animating || !canTurn(dir)) return;
     animating = true;
     haptic(6);
-    var from = p0 == null ? (dir > 0 ? 0 : 1) : p0;
-    var to = dir > 0 ? 1 : 0;
-    prepareTurn(idx);
-    setTurn(s, from, true);
-    void s.el.offsetWidth;
-    var ms = reduceMotion ? 1 : Math.max(280, TURN_MS * Math.abs(to - from));
-    s.el.style.transition = '--p ' + ms + 'ms var(--ease-page)';
-    setTurn(s, to);
-    setTimeout(function () {
-      current += dir;
-      animating = false;
-      placeSheets();
-      onArrive();
-    }, ms + 30);
+    var t = beginTurn(dir);
+    if (reduceMotion) { crossfade(t); return; }
+    runTurn(t, dir > 0 ? 0 : 1, dir > 0 ? 1 : 0, TURN_MS, TURN_EASE, function () { endTurn(t, true); });
+  }
+
+  // Bewegung reduzieren: kurzer Crossfade statt Drehung
+  function crossfade(t) {
+    var el = t.s.el, a;
+    if (t.dir > 0) a = el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, easing: 'ease', fill: 'forwards' });
+    else a = el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'ease', fill: 'forwards' });
+    turnAnims = [a];
+    a.onfinish = function () { endTurn(t, true); };
   }
 
   function next() {
     if (!isOpen) { openBook(); return; }
-    if (current < sheets.length - 1) turn(1);
+    turn(1);
   }
   function prev() {
-    if (!isOpen) return;
+    if (!isOpen || animating) return;
     if (current > 0) turn(-1); else closeBook();
   }
 
-  /* Wischen und Tippen */
+  /* Wischen und Tippen
+     - Wischen folgt dem Finger: die Blattkante bleibt unter dem Finger (Winkel = acos der Kantenposition).
+     - Loslassen: ab 30 % oder bei schnellem Wischen fertig blättern, sonst zurückfedern.
+     - Tippen rechts = weiter, links = zurück. Bedienelemente lösen nie ein Umblättern aus. */
   function setupGestures() {
-    var st = null;
+    var st = null, raf = 0;
 
     function interactive(t) {
-      return t.closest && t.closest('button, a, input, .bar, .gift');
+      return t.closest && t.closest('button, a, input, .bar, .gift__card, .voice');
+    }
+    function track(e) {
+      st.pts.push([e.clientX, performance.now()]);
+      if (st.pts.length > 6) st.pts.shift();
+    }
+    function velocity(g) {                         // px/ms aus den letzten ~100 ms
+      var now = performance.now(), pts = g.pts.filter(function (q) { return now - q[1] < 100; });
+      if (pts.length < 2) return 0;
+      var a = pts[0], b = pts[pts.length - 1];
+      return (b[0] - a[0]) / Math.max(1, b[1] - a[1]);
+    }
+    function dragP(x) {
+      var dx = x - st.ox, w = book.clientWidth;
+      var c = st.turn.dir > 0 ? 1 + dx / w : dx / w - 1;
+      return Math.acos(Math.min(1, Math.max(-1, c))) / Math.PI;
     }
 
     stage.addEventListener('pointerdown', function (e) {
-      if (e.pointerType === 'mouse' && e.button !== 0) return;
-      if (animating) return;
-      st = { x: e.clientX, y: e.clientY, t: performance.now(), inter: interactive(e.target), drag: 0, idx: -1, p: 0 };
+      if (st || (e.pointerType === 'mouse' && e.button !== 0)) return;   // zweiter Finger wird ignoriert
+      st = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now(), inter: interactive(e.target), mode: 0, pts: [] };
+      track(e);
     });
 
     stage.addEventListener('pointermove', function (e) {
-      if (!st || !isOpen || animating) return;
+      if (!st || e.pointerId !== st.id) return;
+      track(e);
       var dx = e.clientX - st.x, dy = e.clientY - st.y;
-      if (!st.drag) {
-        if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.2) {
-          st.drag = dx < 0 ? 1 : -1;
-          st.idx = st.drag > 0 ? current : current - 1;
-          if (!sheets[st.idx] || (st.drag > 0 && current >= sheets.length - 1)) { st = null; return; }
-          prepareTurn(st.idx);
-          try { stage.setPointerCapture(e.pointerId); } catch (err) { /* egal */ }
-        } else return;
+      if (st.mode === 0) {
+        if (Math.abs(dx) < 10 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
+        var dir = dx < 0 ? 1 : -1;
+        if (animating || !canTurn(dir)) { st.mode = -1; return; }
+        if (reduceMotion) { st.mode = -1; turn(dir); return; }
+        animating = true;                           // ab jetzt keine anderen Eingaben (Tasten, Pfeile)
+        st.mode = 1;
+        st.ox = e.clientX;
+        st.turn = beginTurn(dir);
+        st.p = dir > 0 ? 0 : 1;
+        haptic(6);
+        try { stage.setPointerCapture(e.pointerId); } catch (err) { /* egal */ }
       }
-      var w = book.clientWidth * 0.95;
-      var p = st.drag > 0 ? -dx / w : 1 - dx / w;
-      st.p = Math.min(1, Math.max(0, p));
-      setTurn(sheets[st.idx], st.p, true);
+      if (st.mode !== 1) return;
+      st.p = dragP(e.clientX);
+      if (!raf) raf = requestAnimationFrame(function () { raf = 0; if (st && st.mode === 1) applyFrame(st.turn, st.p); });
     });
 
     function end(e, cancelled) {
-      if (!st) return;
+      if (!st || e.pointerId !== st.id) return;
       var s = st;
       st = null;
-      var dx = e.clientX - s.x, dy = e.clientY - s.y, dt = performance.now() - s.t;
-      if (s.drag) {
-        var fast = Math.abs(dx) / dt > 0.5;
-        var done = !cancelled && (s.drag > 0 ? (s.p > 0.3 || (fast && dx < 0)) : (s.p < 0.7 || (fast && dx > 0)));
-        if (done) { turn(s.drag, s.p); return; }
-        animating = true;
-        var sheet = sheets[s.idx];
-        sheet.el.style.transition = '--p 280ms var(--ease-page)';
-        setTurn(sheet, s.drag > 0 ? 0 : 1);
-        setTimeout(function () { animating = false; placeSheets(); }, 300);
+      if (s.mode === 1) {
+        cancelAnimationFrame(raf);
+        raf = 0;
+        var t = s.turn, v = velocity(s), p = s.p;
+        applyFrame(t, p);
+        var done = !cancelled && (t.dir > 0
+          ? (v < -0.35 || (p > 0.3 && v < 0.35))
+          : (v > 0.35 || (p < 0.7 && v > -0.35)));
+        var target = done === (t.dir > 0) ? 1 : 0;
+        var dist = Math.abs(target - p);
+        var ms = done ? Math.max(220, TURN_MS * dist * 0.9) : Math.max(200, 420 * dist);
+        runTurn(t, p, target, ms, RELEASE_EASE, function () { endTurn(t, done); });
         return;
       }
+      if (s.mode === -1) return;
+      var dx = e.clientX - s.x, dy = e.clientY - s.y, dt = performance.now() - s.t;
       if (cancelled || s.inter || Math.abs(dx) > 10 || Math.abs(dy) > 10 || dt > 600) return;
       if (String(window.getSelection ? window.getSelection() : '')) return;
       if (!isOpen) {
@@ -939,7 +1052,7 @@
         return;
       }
       var r = book.getBoundingClientRect();
-      if (e.clientX < r.left + r.width * 0.3) prev(); else next();
+      if (e.clientX < r.left + r.width / 2) prev(); else next();
     }
 
     stage.addEventListener('pointerup', function (e) { end(e, false); });
@@ -952,6 +1065,7 @@
     $('#next').addEventListener('click', next);
     document.addEventListener('keydown', function (e) {
       if (e.target.closest && e.target.closest('input')) return;
+      if (e.repeat) return;                         // gedrückt gehaltene Taste blättert nicht durch
       if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); next(); }
       if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
     });
