@@ -56,7 +56,32 @@
   /* Start                                                               */
   /* ------------------------------------------------------------------ */
 
+  /* Kein Zoom auf dem Handy. iOS Safari ignoriert user-scalable=no teilweise, daher zusätzlich per JS:
+     Safari-Gesten, Pinch mit zwei Fingern und Doppeltipp werden blockiert. Wischen und Tippen bleiben. */
+  function blockZoom() {
+    var opt = { passive: false };
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
+      document.addEventListener(ev, function (e) { e.preventDefault(); }, opt);
+    });
+    document.addEventListener('touchmove', function (e) {
+      if (e.touches.length > 1) e.preventDefault();
+    }, opt);
+    // Doppeltipp: der zweite Tipp innerhalb von 300 ms zoomt nicht. Liegt er auf einem Button,
+    // Link oder Foto, wird dessen Klick selbst ausgelöst, damit schnelles Tippen nichts verschluckt.
+    var lastEnd = 0;
+    document.addEventListener('touchend', function (e) {
+      var now = Date.now();
+      if (now - lastEnd < 300 && e.touches.length === 0) {
+        e.preventDefault();
+        var t = e.target && e.target.closest && e.target.closest('button, a, .gift__box');
+        if (t && !t.disabled) t.click();
+      }
+      lastEnd = now;
+    }, opt);
+  }
+
   function start() {
+    blockZoom();
     var data = window.BUCH;
     if (!data) {
       document.body.textContent = 'Inhalt fehlt. Bitte zuerst "Website bauen" ausführen.';

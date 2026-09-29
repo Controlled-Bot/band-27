@@ -71,6 +71,11 @@ body {
   -webkit-user-select: none;
   user-select: none;
 }
+/* Kein Zoom auf dem Handy: nur Verschieben erlaubt, kein Pinch- oder Doppeltipp-Zoom */
+html, body { touch-action: pan-x pan-y; }
+.book, .book .page { touch-action: manipulation; }
+/* iOS zoomt beim Antippen von Eingabefeldern unter 16px automatisch */
+input, select, textarea { font-size: max(16px, 1em); }
 button { font: inherit; color: inherit; -webkit-appearance: none; appearance: none; }
 button > * { pointer-events: none; }
 
@@ -270,7 +275,7 @@ mark.ph {
   content: "";
   width: 7px; height: 7px;
   border-radius: 50%;
-  background: var(--accent);
+  background: #C9A27E;                           /* warmes Karamell */
   animation: pulse 1.6s ease-in-out .6s 3;       /* nur beim Laden 3x, danach ruhig */
 }
 @keyframes pulse { 50% { opacity: .35; transform: scale(.75); } }
@@ -813,11 +818,11 @@ mark.ph {
   gap: 2px;
   padding: 5px;
   border-radius: 999px;
-  background: var(--glass);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  backdrop-filter: saturate(180%) blur(20px);
-  border: .5px solid var(--glass-line);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, .12), 0 1px 2px rgba(0, 0, 0, .06);
+  background: rgba(250, 243, 232, .8);          /* warmes Creme */
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(201, 162, 126, .35);
+  box-shadow: 0 10px 28px rgba(120, 72, 36, .16), 0 1px 3px rgba(120, 72, 36, .1);
   opacity: 0;
   transform: translate(-50%, 24px) scale(.96);
   transition: opacity .5s var(--ease), transform .6s var(--spring);
@@ -830,16 +835,16 @@ mark.ph {
   border: 0;
   border-radius: 50%;
   background: transparent;
-  color: var(--accent);
+  color: #8B5E3C;
   cursor: pointer;
   transition: transform .2s var(--ease), background .3s var(--ease), opacity .3s;
 }
-.bar__btn:active { transform: scale(.86); background: var(--fill); }
-.bar__btn:disabled { opacity: .3; }
+.bar__btn:active { transform: scale(.86); background: rgba(201, 162, 126, .2); }
+.bar__btn:disabled { color: #C9A27E; opacity: .4; }
 .bar__btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
-.bar__music { color: var(--muted); }
+.bar__music { color: #A98466; }
 .bar__music svg { width: 19px; height: 19px; stroke-width: 1.9; }
-.bar__music.is-on { color: var(--accent); }
+.bar__music.is-on { color: #8B5E3C; }
 .bar__mid { width: 128px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .bar__label {
   max-width: 100%;
@@ -848,12 +853,13 @@ mark.ph {
   white-space: nowrap;
   font: 600 13px/1.1 var(--sans);
   letter-spacing: -.01em;
+  color: #4A2E1F;
 }
-.bar__track { width: 100%; height: 3px; border-radius: 3px; background: var(--fill); overflow: hidden; }
+.bar__track { width: 100%; height: 3px; border-radius: 3px; background: rgba(201, 162, 126, .28); overflow: hidden; }
 .bar__fill {
   display: block;
   height: 100%;
-  background: var(--accent);
+  background: linear-gradient(90deg, #C8643B, #E0904A);
   border-radius: 3px;
   transform-origin: 0 50%;
   transform: scaleX(0);
