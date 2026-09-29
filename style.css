@@ -13,8 +13,8 @@
   --muted: #6E6E73;
   --muted-2: #86868B;
   --accent: #0071E3;
-  --page: #FFFFFF;
-  --page-back: #F4F4F6;
+  --page: #FBF8F3;                   /* leicht warmes Papier statt Reinweiß */
+  --page-back: #F3EFE8;
   --edge: #DCDCE1;
   --board: #E3E3E8;
   --cover: #FFFFFF;
@@ -43,8 +43,8 @@
     --muted: #98989D;
     --muted-2: #8E8E93;
     --accent: #0A84FF;
-    --page: #1C1C1E;
-    --page-back: #232325;
+    --page: #1E1C1A;
+    --page-back: #252321;
     --edge: #3A3A3C;
     --board: #2C2C2E;
     --cover: #1C1C1E;
@@ -481,6 +481,27 @@ mark.ph {
 }
 
 
+/* Herbstblätter und Windlinien hinter dem Inhalt der hellen Seiten (per JS animiert) */
+.leaves {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  color: rgba(150, 118, 84, .5);           /* Farbe der Windlinien */
+}
+.pg--leaves > .pg__head, .pg--leaves > .pg__body, .pg--leaves > .pg__num { position: relative; z-index: 1; }
+.leaf {
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform, opacity;
+}
+.leaf svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.wind { position: absolute; left: 0; height: 1.1em; opacity: 0; will-change: transform, opacity; }
+.wind svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.wind path { fill: none; stroke: currentColor; stroke-width: 1.2; stroke-linecap: round; vector-effect: non-scaling-stroke; stroke-dasharray: 40 100; }
+
 /* Geburtstags-Akzente: ein Emoji pro Seite in der Ecke, blendet beim Aufschlagen kurz ein */
 .accent {
   position: absolute;
@@ -622,59 +643,106 @@ mark.ph {
 .gift.is-out .gift__body { transform: translateY(12%) scale(.9); opacity: 0; transition-delay: .25s; }
 .gift.is-out .gift__shadow { opacity: 0; transition: opacity .4s; }
 
+/* Gutschein-Karte: kommt aus der Box und steht mittig auf der Seite (alles in em, skaliert mit dem Buch) */
 .gift__card {
   position: absolute;
   z-index: 2;
-  left: 4%;
-  right: 4%;
+  left: -2%;
+  right: -2%;
   top: 50%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: .6em;
-  padding: 1.2em 1em;
-  border: 1px solid rgba(255, 255, 255, .55);
-  border-radius: 1.1em;
-  background: rgba(255, 255, 255, .66);         /* auch ohne Blur gut lesbar */
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  backdrop-filter: blur(20px) saturate(180%);
+  padding: 1em .95em .95em;
+  border: 1px solid rgba(255, 255, 255, .6);
+  border-radius: 1.2em;
+  background: rgba(255, 255, 255, .72);         /* auch ohne Blur gut lesbar */
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  backdrop-filter: blur(22px) saturate(180%);
   color: #1D1D1F;
-  box-shadow: 0 12px 32px -10px rgba(0, 30, 60, .35);
+  text-align: center;
+  box-shadow: 0 14px 36px -12px rgba(0, 30, 60, .38), 0 1px 2px rgba(0, 30, 60, .08);
   opacity: 0;
-  transform: translateY(0) scale(.35);             /* wartet klein in der Box */
+  transform: translateY(-20%) scale(.3);           /* wartet klein in der Box */
   pointer-events: none;
   transition: transform .9s var(--spring), opacity .35s var(--ease);
 }
 .gift.is-out .gift__card { opacity: 1; transform: translateY(-50%) scale(1); pointer-events: auto; }
-.gift__title { margin: 0; font: 600 .7em/1.2 var(--sans); letter-spacing: .1em; text-transform: uppercase; color: #0071E3; }
+.gift__card p { margin: 0; }
+.gift__title { font: 600 .74em/1.2 var(--sans); color: #6E6E73; }
+.gift__name {
+  margin-top: .25em !important;
+  font: 600 1.12em/1.2 var(--display);
+  letter-spacing: -.015em;
+  text-wrap: balance;
+}
 .gift__code {
-  margin: 0;
-  font: 700 1.55em/1.15 var(--mono);
-  letter-spacing: .06em;
-  text-align: center;
+  margin-top: .55em !important;
+  padding: .32em .6em;
+  border-radius: .45em;
+  background: rgba(0, 0, 0, .045);
+  font: 600 1.5em/1.15 var(--mono);
+  letter-spacing: .05em;
   overflow-wrap: anywhere;
   -webkit-user-select: all;
   user-select: all;
 }
-.gift__copy {
+.gift__code--hidden { color: #86868B; letter-spacing: .12em; -webkit-user-select: none; user-select: none; }
+.gift__release { margin-top: .45em !important; font: 400 .62em/1.3 var(--sans); color: #86868B; }
+.gift__copy, .gift__redeem {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: .4em;
-  height: 2.4em;
+  height: 2.5em;
   padding: 0 1.1em;
   border: 0;
   border-radius: 999px;
-  background: #0071E3;
-  color: #fff;
   font: 600 .78em/1 var(--sans);
+  text-decoration: none;
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
-  transition: opacity .4s var(--ease), background .3s var(--ease);
+  transition: opacity .4s var(--ease), background .3s var(--ease), color .3s var(--ease), transform .15s var(--ease);
 }
+.gift__copy { margin-top: .6em; background: rgba(0, 113, 227, .11); color: #0071E3; }
 .gift__copy svg { width: 1.2em; height: 1.2em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.gift.is-done .gift__copy { opacity: 1; pointer-events: auto; }
-.gift__copy.is-copied { background: #34C759; }
+.gift__copy.is-copied { background: #34C759; color: #fff; }
+.gift__redeem { align-self: stretch; margin-top: .7em; background: #0071E3; color: #fff; -webkit-tap-highlight-color: transparent; }
+.gift__copy:active, .gift__redeem:active { transform: scale(.96); }
+.gift.is-done .gift__copy, .gift.is-done .gift__redeem { opacity: 1; pointer-events: auto; }
+
+.gift__steps {
+  align-self: stretch;
+  margin-top: .8em;
+  padding-top: .7em;
+  border-top: .5px solid rgba(0, 0, 0, .12);
+  text-align: left;
+}
+.gift__steps-title { font: 600 .66em/1.2 var(--sans); color: #1D1D1F; }
+.gift__steps ol { margin: .35em 0 0; padding: 0; list-style: none; counter-reset: step; }
+.gift__steps li {
+  position: relative;
+  padding-left: 1.75em;
+  font: 400 .64em/1.35 var(--sans);
+  color: #3A3A3C;
+  counter-increment: step;
+}
+.gift__steps li + li { margin-top: .3em; }
+.gift__steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: .05em;
+  width: 1.3em;
+  height: 1.3em;
+  border-radius: 50%;
+  background: rgba(0, 113, 227, .12);
+  color: #0071E3;
+  font: 600 .9em/1.45em var(--sans);
+  text-align: center;
+}
+.gift__note { align-self: stretch; margin-top: .6em !important; font: 400 .58em/1.35 var(--sans); color: #86868B; text-align: left; }
 .gift__hint {
   margin: 1.3em 0 0;
   padding: .45em 1em;
@@ -818,6 +886,7 @@ mark.ph {
   .book__board::before { background: linear-gradient(90deg, rgba(0, 0, 0, .4), rgba(0, 0, 0, .1) 70%, rgba(255, 255, 255, .05)); }
   .tchat { --tk-them: #2F2F33; --tk-them-text: #F5F5F7; --tk-sys: #8E8E93; --tk-story: #2A2A2E; }
   .tchat__react { background: #3A3A3C; }
+  .leaves { color: rgba(255, 236, 214, .28); }
 }
 
 /* =====================================================================

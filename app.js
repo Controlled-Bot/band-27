@@ -88,7 +88,8 @@
   }
 
   function sheetHtml(label, bodyHtml, cls, opts, n) {
-    return '<div class="face face--front"><div class="pg ' + (cls || '') + '">' + (opts.accent || '') +
+    var leaves = /\bpg--leaves\b/.test(cls || '') ? '<div class="leaves" aria-hidden="true"></div>' : '';
+    return '<div class="face face--front"><div class="pg ' + (cls || '') + '">' + leaves + (opts.accent || '') +
         (opts.head === false ? '' : '<header class="pg__head">' + fmt(opts.head || label) + '</header>') +
         '<div class="pg__body">' + bodyHtml + '</div>' +
         (opts.number === false ? '' : '<footer class="pg__num">' + n + '</footer>') +
@@ -124,7 +125,7 @@
       var first = !pages.length;
       measureEl.innerHTML = '<div class="sheet">' +
         sheetHtml(k.label, (first ? opener(k.label, k.titel) : '') + '<div class="chapter"></div>',
-          'pg--chapter', { head: first ? false : k.label }, 1) + '</div>';
+          'pg--chapter pg--leaves', { head: first ? false : k.label }, 1) + '</div>';
       body = $('.pg__body', measureEl);
       box = $('.chapter', body);
       html = [];
@@ -193,13 +194,13 @@
     sheets = [];
     special = {};
 
-    page(D.widmung.titel || 'Chat', tiktokChatHtml(D.widmung), 'pg--chat',
+    page(D.widmung.titel || 'Chat', tiktokChatHtml(D.widmung), 'pg--chat pg--leaves',
       { head: D.widmung.titel || false, accent: accentHtml(acc('chat', 0), 'br', -8) });
 
     var k = D.kapitel;
     special.confetti = sheets.length;
     chapterPages.forEach(function (html, i) {
-      var el = page(k.label, html, 'pg--chapter', {
+      var el = page(k.label, html, 'pg--chapter pg--leaves', {
         head: i ? k.label : false,
         accent: accentHtml(acc('kapitel', i), i ? 'br' : 'tr', [9, -7, 6][i % 3])
       });
@@ -221,7 +222,7 @@
                  : '<span class="collage__missing">' + esc(f.bild) + '</span>') +
           '</button>';
         }).join('') + '</div>' +
-        '<p class="collage__caption">' + fmt(co.unterschrift) + '</p>', 'pg--collage',
+        '<p class="collage__caption">' + fmt(co.unterschrift) + '</p>', 'pg--collage pg--leaves',
         { head: false, accent: accentHtml(acc('collage', 0), 'tr', -9) });
     }
 
@@ -350,20 +351,34 @@
           '<button type="button" class="gift__box" aria-label="Geschenk öffnen">' +
             '<span class="gift__shadow" aria-hidden="true"></span><span class="gift__hop">' + GIFT_BOX + '</span>' +
           '</button>' +
-          '<div class="gift__card">' +
-            '<p class="gift__title">' + fmt(g.titel) + '</p>' +
+        '</div>' +
+        '<div class="gift__card">' +
+          '<p class="gift__title">' + fmt(g.titel) + '</p>' +
+          '<p class="gift__name">' + fmt([g.gutschein, g.wert].filter(Boolean).join(' · ')) + '</p>' +
+          (g.freigegeben === false ?
+            // Code noch zensiert: Platzhalter und Freischalt-Hinweis, kein Kopieren
+            '<p class="gift__code gift__code--hidden" aria-label="Code noch nicht freigeschaltet">' + esc(g.zensiert || '•••-•••-•••') + '</p>' +
+            '<p class="gift__release">' + fmt(g.zensiertHinweis) + '</p>'
+          :
             '<p class="gift__code" data-code="' + esc(g.code) + '">' + fmt(g.code) + '</p>' +
             '<button type="button" class="gift__copy" tabindex="-1">' +
               '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V6.5A2.5 2.5 0 0 1 7.5 4H15"/></svg>' +
-              '<span>' + esc(g.buttonText) + '</span></button>' +
-          '</div>' +
+              '<span>' + esc(g.buttonText) + '</span></button>') +
+          (g.schritte && g.schritte.length ?
+            '<div class="gift__steps">' +
+              '<p class="gift__steps-title">' + fmt(g.schritteTitel) + '</p>' +
+              '<ol>' + g.schritte.map(function (s) { return '<li>' + fmt(s) + '</li>'; }).join('') + '</ol>' +
+            '</div>' : '') +
+          (g.notiz ? '<p class="gift__note">' + fmt(g.notiz) + '</p>' : '') +
+          (g.einloesenLink ? '<a class="gift__redeem" href="' + esc(g.einloesenLink) + '" target="_blank" rel="noopener" tabindex="-1">' +
+            esc(g.einloesenText || 'Jetzt einlösen') + '</a>' : '') +
         '</div>' +
         '<p class="gift__hint">' + fmt(g.hinweis) + '</p>' +
       '</div>';
   }
 
   function wireGift(sheet) {
-    var gift = $('.gift', sheet), box = $('.gift__box', sheet), copy = $('.gift__copy', sheet);
+    var gift = $('.gift', sheet), box = $('.gift__box', sheet), copy = $('.gift__copy', sheet), redeem = $('.gift__redeem', sheet);
     var g = D.geschenk, opened = false;
 
     box.addEventListener('click', function () {
@@ -373,10 +388,14 @@
       var t = reduceMotion ? 0.1 : 1;
       gift.classList.add('is-open');                  // Deckel springt weg
       setTimeout(function () { gift.classList.add('is-out'); emojiBurst(g.emojis); }, 380 * t);
-      setTimeout(function () { gift.classList.add('is-done'); copy.removeAttribute('tabindex'); }, 1200 * t);
+      setTimeout(function () {
+        gift.classList.add('is-done');
+        if (copy) copy.removeAttribute('tabindex');
+        if (redeem) redeem.removeAttribute('tabindex');
+      }, 1200 * t);
     });
 
-    copy.addEventListener('click', function () {
+    if (copy) copy.addEventListener('click', function () {
       var label = copy.querySelector('span'), code = $('.gift__code', sheet);
       copyText(code.getAttribute('data-code')).then(function (ok) {
         haptic(10);
@@ -459,6 +478,183 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* Herbstblätter auf den hellen Buchseiten (Chat, Kapitel, Collage)    */
+  /* ------------------------------------------------------------------ */
+
+  // Blattformen (viewBox 0 0 100 100, Stiel unten), Farbe kommt über currentColor
+  var LEAF_SHAPES = [
+    // Ahorn
+    '<path fill="currentColor" d="M50 4 57 22 66 17 63 37 78 27 82 35 94 32 88 48 96 53 74 67 77 76 55 72 53 90 47 90 45 72 23 76 26 67 4 53 12 48 6 32 18 35 22 27 37 37 34 17 43 22Z"/>' +
+    '<path d="M50 96V30M50 62 78 40M50 62 22 40M50 74 70 66M50 74 30 66" stroke="rgba(0,0,0,.2)" stroke-width="2" fill="none" stroke-linecap="round"/>',
+    // Eiche
+    '<path fill="currentColor" d="M50 6C58 6 60 14 57 19 66 16 71 24 64 30 74 29 77 39 67 43 77 45 77 56 66 57 74 62 70 72 60 69 63 77 57 83 52 80V94H48V80C43 83 37 77 40 69 30 72 26 62 34 57 23 56 23 45 33 43 23 39 26 29 36 30 29 24 34 16 43 19 40 14 42 6 50 6Z"/>' +
+    '<path d="M50 90V14M50 36 61 28M50 36 39 28M50 52 64 46M50 52 36 46M50 66 58 62M50 66 42 62" stroke="rgba(0,0,0,.2)" stroke-width="2" fill="none" stroke-linecap="round"/>'
+  ];
+  var LEAF_COLORS = ['#E07A2E', '#B4472B', '#D3A23A', '#8B5A35', '#CC6A2C', '#C08A2E'];
+  var LEAF_COUNT = 10;
+  var WIND_LINE = '<svg viewBox="0 0 120 14" preserveAspectRatio="none"><path pathLength="100" d="M2 9C26 3 46 3 64 7S100 12 118 5"/></svg>';
+
+  var leafFields = {};        // Blattfelder je Blattindex
+  var leafActive = null, leafRaf = 0, leafLast = 0, leafTime = 0;
+  var gust = { t: 0, next: 5, dir: 1, power: 0 };
+
+  function rnd(a, b) { return a + Math.random() * (b - a); }
+
+  // Eher am Rand: meist in den äußeren 22 % links oder rechts
+  function edgeX(w) {
+    var r = Math.random();
+    if (r < .42) return rnd(-.04, .22) * w;
+    if (r < .84) return rnd(.78, 1.02) * w;
+    return rnd(.2, .8) * w;
+  }
+
+  function makeLeaf(layer, w, h, scattered) {
+    var el = document.createElement('span');
+    el.className = 'leaf';
+    var size = w * rnd(.058, .095);
+    el.style.width = el.style.height = size + 'px';
+    el.style.color = LEAF_COLORS[Math.floor(Math.random() * LEAF_COLORS.length)];
+    el.innerHTML = '<svg viewBox="0 0 100 100">' + LEAF_SHAPES[Math.random() < .55 ? 0 : 1] + '</svg>';
+    layer.appendChild(el);
+    var lf = { el: el, size: size };
+    resetLeaf(lf, w, h, scattered);
+    return lf;
+  }
+
+  function resetLeaf(lf, w, h, scattered) {
+    lf.x = edgeX(w);
+    lf.y = scattered ? rnd(-.1, 1) * h : -lf.size - rnd(0, h * .3);
+    lf.vy = rnd(14, 26);                      // langsam fallen (px/s)
+    lf.drag = rnd(.7, 1.3);                   // wie stark der Wind das Blatt trägt
+    lf.amp = rnd(8, 18);                      // Schaukeln hin und her
+    lf.ph = rnd(0, 6.28);
+    lf.om = rnd(.7, 1.3);
+    lf.rot = rnd(0, 360);
+    lf.spin = rnd(12, 38) * (Math.random() < .5 ? -1 : 1);
+    lf.flip = rnd(0, 6.28);
+    lf.alpha = rnd(.5, .7);
+  }
+
+  function drawLeaf(lf, w) {
+    var sx = lf.x + Math.sin(lf.ph) * lf.amp;
+    var tilt = Math.sin(lf.ph) * 18;          // pendelt beim Schaukeln mit
+    var fx = .75 + .25 * Math.cos(lf.flip);   // leichtes Wenden im Fallen
+    // in der Seitenmitte etwas blasser, damit Text und Chat gut lesbar bleiben
+    var mid = 1 - Math.min(1, Math.abs(sx / w - .5) / .32);
+    lf.el.style.transform = 'translate3d(' + sx.toFixed(1) + 'px,' + lf.y.toFixed(1) + 'px,0) rotate(' + (lf.rot + tilt).toFixed(1) + 'deg) scaleX(' + fx.toFixed(3) + ')';
+    lf.el.style.opacity = (lf.alpha * (1 - .45 * mid)).toFixed(3);
+  }
+
+  function setupLeaves() {
+    stopLeaves();
+    leafFields = {};
+    sheets.forEach(function (s, i) {
+      var layer = $('.leaves', s.el);
+      if (!layer) return;
+      layer.innerHTML = '';
+      var w = layer.clientWidth || book.clientWidth, h = layer.clientHeight || book.clientHeight;
+      var f = { layer: layer, w: w, h: h, leaves: [] };
+      for (var n = 0; n < LEAF_COUNT; n++) f.leaves.push(makeLeaf(layer, w, h, true));
+      f.leaves.forEach(function (lf) { drawLeaf(lf, w); });
+      leafFields[i] = f;
+    });
+  }
+
+  // Nur die aufgeschlagene Seite animieren; bei „Bewegung reduzieren“ bleiben die Blätter stehen
+  function leavesFor(idx) {
+    var f = isOpen ? leafFields[idx] : null;
+    if (f === leafActive) return;
+    stopLeaves();
+    leafActive = f || null;
+    if (!leafActive || reduceMotion) return;
+    leafLast = 0;
+    leafRaf = requestAnimationFrame(leafFrame);
+  }
+  // Nach Größenänderung: Blätter proportional mitziehen
+  function sizeLeaves() {
+    Object.keys(leafFields).forEach(function (k) {
+      var f = leafFields[k], w = f.layer.clientWidth, h = f.layer.clientHeight;
+      if (!w || !h || (w === f.w && h === f.h)) return;
+      f.leaves.forEach(function (lf) {
+        lf.x *= w / f.w; lf.y *= h / f.h;
+        lf.size *= w / f.w;
+        lf.el.style.width = lf.el.style.height = lf.size + 'px';
+      });
+      f.w = w; f.h = h;
+      f.leaves.forEach(function (lf) { drawLeaf(lf, w); });
+    });
+  }
+  function stopLeaves() {
+    cancelAnimationFrame(leafRaf);
+    leafRaf = 0;
+    leafActive = null;
+  }
+
+  function leafFrame(now) {
+    var f = leafActive;
+    if (!f) return;
+    var dt = leafLast ? Math.min(.05, (now - leafLast) / 1000) : 0;
+    leafLast = now;
+    leafTime += dt;
+
+    // leichter Grundwind, der langsam die Richtung wechselt
+    var breeze = 7 * Math.sin(leafTime * 6.28 / 46);
+    // gelegentlicher Windstoß: schnell an, langsam aus
+    gust.next -= dt;
+    if (gust.next <= 0) {
+      gust.t = 0;
+      gust.dir = Math.abs(breeze) > 2 ? (breeze > 0 ? 1 : -1) : (Math.random() < .5 ? -1 : 1);
+      gust.power = rnd(55, 85);
+      gust.next = rnd(8, 15);
+      windLines(f, gust.dir);
+    }
+    gust.t += dt;
+    var env = gust.t < .45 ? gust.t / .45 : Math.max(0, 1 - (gust.t - .45) / 1.9);
+    var g = gust.dir * gust.power * env * env;
+    var wind = breeze + g;
+
+    var w = f.w, h = f.h;
+    f.leaves.forEach(function (lf) {
+      lf.y += lf.vy * dt * (1 + Math.abs(g) / 160);
+      lf.x += wind * lf.drag * dt;
+      lf.ph += lf.om * dt;
+      lf.rot += lf.spin * dt * (1 + Math.abs(g) / 40);
+      lf.flip += dt * (1.1 + Math.abs(g) / 25);
+      if (lf.y > h + lf.size) resetLeaf(lf, w, h, false);
+      else if (lf.x > w + lf.size * 2) lf.x = -lf.size * 1.5;
+      else if (lf.x < -lf.size * 2) lf.x = w + lf.size * .5;
+      drawLeaf(lf, w);
+    });
+    leafRaf = requestAnimationFrame(leafFrame);
+  }
+
+  // Feine Windlinien, die kurz über die Seite ziehen
+  function windLines(f, dir) {
+    var n = 2 + Math.floor(Math.random() * 2);
+    for (var i = 0; i < n; i++) {
+      var el = document.createElement('span');
+      el.className = 'wind';
+      el.innerHTML = WIND_LINE;
+      var lw = f.w * rnd(.35, .5);
+      el.style.width = lw + 'px';
+      el.style.top = (f.h * rnd(.12, .85)) + 'px';
+      if (dir < 0) el.style.scale = '-1 1';
+      f.layer.appendChild(el);
+      var from = dir > 0 ? -lw : f.w, to = dir > 0 ? f.w : -lw;
+      var dur = rnd(1100, 1600), delay = i * rnd(120, 280);
+      var a = el.animate([
+        { transform: 'translateX(' + from + 'px)', opacity: 0 },
+        { opacity: 1, offset: .25 },
+        { opacity: 1, offset: .65 },
+        { transform: 'translateX(' + to + 'px)', opacity: 0 }
+      ], { duration: dur, delay: delay, easing: 'cubic-bezier(.3,.1,.4,1)', fill: 'both' });
+      var path = el.querySelector('path');
+      path.animate([{ strokeDashoffset: 40 }, { strokeDashoffset: -100 }], { duration: dur, delay: delay, fill: 'both' });
+      a.onfinish = (function (x) { return function () { x.remove(); }; })(el);
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Konfetti                                                            */
   /* ------------------------------------------------------------------ */
 
@@ -537,6 +733,7 @@
     if (special.collage != null) wireCollage(sheets[special.collage].el);
     if (special.gift != null) wireGift(sheets[special.gift].el);
     wireVoice(sheets[special.back].el);
+    setupLeaves();
     current = Math.min(current, sheets.length - 1);
     placeSheets();
   }
@@ -550,6 +747,7 @@
       mountSheets();
     }
     fitAll();
+    sizeLeaves();
   }
 
   function layout() {
@@ -593,6 +791,7 @@
       s.el.style.visibility = (!turned && i <= current + 1) ? 'visible' : 'hidden';
       if (i === current) s.el.removeAttribute('inert'); else s.el.setAttribute('inert', '');
     });
+    leavesFor(current);
     void book.offsetWidth;
     sheets.forEach(function (s) { s.el.style.transition = ''; });
     updateBar();
@@ -618,6 +817,7 @@
     haptic(10);
     stage.classList.add('is-open');
     cover.setAttribute('aria-label', 'Buch');
+    leavesFor(current);
     var bar = $('#bar');
     bar.hidden = false;
     requestAnimationFrame(function () { requestAnimationFrame(function () { bar.classList.add('is-shown'); }); });
@@ -635,6 +835,7 @@
     void cover.offsetWidth;
     stage.classList.remove('is-open');
     cover.setAttribute('aria-label', 'Buch öffnen');
+    stopLeaves();
     $('#bar').classList.remove('is-shown');
     setTimeout(function () { $('#bar').hidden = true; animating = false; }, reduceMotion ? 50 : 1100);
   }
