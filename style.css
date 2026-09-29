@@ -134,6 +134,11 @@ mark.ph {
   backdrop-filter: none;
 }
 
+/* Einfacher Modus, falls StPageFlip nicht startet: eine Seite nach der anderen */
+.flip--simple { position: relative; width: var(--bw); height: var(--bh); }
+.flip--simple .page { position: absolute; inset: 0; display: none; }
+.flip--simple .page.is-shown { display: block; }
+
 /* Unsichtbare Messseite: Seitenumbruch und Einpassen in Originalgröße */
 .page-measure {
   position: fixed;

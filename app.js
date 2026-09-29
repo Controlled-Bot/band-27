@@ -718,7 +718,7 @@
   var RATIO = 1.45;                                // Seitenhöhe / Seitenbreite
   var FLIP_MS = reduceMotion ? 300 : 900;
   var FORWARD = 0;                                 // FlipDirection.FORWARD in StPageFlip
-  var stage, holder, flip = null, geo = null, chapterPages = null, shown = [];
+  var stage, holder, flip = null, geo = null, chapterPages = null, shown = [], simple = false;
 
   function buildBook() {
     stage = $('#stage');
@@ -775,9 +775,27 @@
     wireVoice(pages[special.back].el);
     pages.forEach(function (p) { shield(p.el); });
 
+    var start = special[key] != null ? special[key] : 0;
+    // Fehlt die Library (z. B. Datei noch nicht ausgeliefert) oder scheitert ihr Start,
+    // zeigt die Seite das Buch trotzdem: einfacher Modus, eine Seite nach der anderen
+    try {
+      if (!window.St || !window.St.PageFlip) throw new Error('page-flip.js nicht geladen');
+      simple = false;
+      createFlip(start);
+    } catch (err) {
+      if (window.console) console.error('Blättern im einfachen Modus:', err);
+      if (flip && flip.destroy) { try { flip.destroy(); } catch (e) { /* egal */ } }
+      simple = true;
+      flip = simpleFlip(start);
+    }
+    measureEl.innerHTML = '';
+    shown = [];
+    settle(true);
+  }
+
+  function createFlip(start) {
     holder.innerHTML = '<div class="flip"></div>';
     holder.style.width = (geo.spread ? geo.pw * 2 : geo.pw) + 'px';
-    var start = special[key] != null ? special[key] : 0;
     flip = new St.PageFlip($('.flip', holder), {
       width: geo.pw,
       height: geo.ph,
@@ -803,9 +821,22 @@
     flip.on('changeState', function (e) { onState(e.data); });
     flip.loadFromHTML(pages.map(function (p) { return p.el; }));
     loosenRelease(flip.getFlipController());
-    measureEl.innerHTML = '';
-    shown = [];
-    settle(true);
+  }
+
+  // Ersatz ohne Library: gleiche Schnittstelle, Einzelseiten, Wechsel ohne Animation
+  function simpleFlip(start) {
+    holder.innerHTML = '<div class="flip flip--simple"></div>';
+    holder.style.width = geo.pw + 'px';
+    var box = $('.flip', holder), cur = start;
+    pages.forEach(function (p) { p.el.classList.add('--right'); box.appendChild(p.el); });
+    function go(i) { if (i >= 0 && i < pages.length && i !== cur) { cur = i; settle(); } }
+    return {
+      getCurrentPageIndex: function () { return cur; },
+      getState: function () { return 'read'; },
+      flipNext: function () { go(cur + 1); },
+      flipPrev: function () { go(cur - 1); },
+      destroy: function () { box.remove(); }
+    };
   }
 
   /* Loslassen beim Ziehen: StPageFlip blättert nur fertig, wenn die Ecke über den Buchrücken
@@ -856,14 +887,14 @@
   // Sichtbare Seiten zu einem Seitenindex
   function visibleAt(i) {
     var last = pages.length - 1;
-    if (!geo.spread || i === 0 || i === last) return [i];
+    if (simple || !geo.spread || i === 0 || i === last) return [i];
     return [i, Math.min(i + 1, last)];
   }
 
   // Geschlossenes Buch mittig: Cover liegt rechts vom Rücken, Rückseite links davon
   function setShift(i) {
     var last = pages.length - 1, x = 0;
-    if (geo.spread) x = i === 0 ? -geo.pw / 2 : (i === last ? geo.pw / 2 : 0);
+    if (geo.spread && !simple) x = i === 0 ? -geo.pw / 2 : (i === last ? geo.pw / 2 : 0);
     holder.style.transform = 'translate3d(' + x + 'px,0,0)';
     var closed = i === 0 || i === last;
     stage.classList.toggle('is-closed', closed);
@@ -947,6 +978,7 @@
     holder.addEventListener('touchend', function (e) {
       var t = e.changedTouches[0], s = t0;
       t0 = null;
+      if (simple) return;                                          // einfacher Modus: der Klick danach blättert
       if (!s || !flip || flip.getState() !== 'read') return;
       if (Date.now() - s.time > 240 || Math.abs(t.clientX - s.x) > 10 || Math.abs(t.clientY - s.y) > 10) return;
       var r = holder.getBoundingClientRect(), i = flip.getCurrentPageIndex(), last = pages.length - 1;
@@ -959,8 +991,18 @@
     });
   }
 
+  // Einfacher Modus (ohne Library): Klick mit der Maus blättert wie ein Tap
+  function setupClick() {
+    holder.addEventListener('click', function (e) {
+      if (!simple || e.target.closest('button, a, .gift__card, .voice')) return;
+      var r = holder.getBoundingClientRect();
+      if (e.clientX - r.left < r.width * 0.3 && flip.getCurrentPageIndex() > 0) flip.flipPrev(); else flip.flipNext();
+    });
+  }
+
   function setupControls() {
     setupTap();
+    setupClick();
     $('#prev').addEventListener('click', prev);
     $('#next').addEventListener('click', next);
     document.addEventListener('keydown', function (e) {
