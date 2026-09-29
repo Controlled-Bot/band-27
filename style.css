@@ -603,14 +603,14 @@ mark.ph {
   flex-direction: column;
   align-items: center;
   padding: 1em .95em .95em;
-  border: 1px solid rgba(255, 255, 255, .6);
+  border: 1px solid rgba(210, 160, 100, .35);    /* feiner Rand in warmem Gold/Beige */
   border-radius: 1.2em;
-  background: rgba(255, 255, 255, .72);         /* auch ohne Blur gut lesbar */
-  -webkit-backdrop-filter: blur(22px) saturate(180%);
-  backdrop-filter: blur(22px) saturate(180%);
-  color: #1D1D1F;
+  background: rgba(255, 244, 230, .72);         /* warmes Creme, auch ohne Blur gut lesbar */
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  color: #4A2E1F;
   text-align: center;
-  box-shadow: 0 14px 36px -12px rgba(0, 30, 60, .38), 0 1px 2px rgba(0, 30, 60, .08);
+  box-shadow: 0 14px 36px -12px rgba(120, 60, 20, .35), 0 1px 2px rgba(120, 60, 20, .08);
   opacity: 0;
   transform: translateY(-20%) scale(.3);           /* wartet klein in der Box */
   pointer-events: none;
@@ -618,7 +618,14 @@ mark.ph {
 }
 .gift.is-out .gift__card { opacity: 1; transform: translateY(-50%) scale(1); pointer-events: auto; }
 .gift__card p { margin: 0; }
-.gift__title { font: 600 .74em/1.2 var(--sans); color: #6E6E73; }
+.gift__card > :not(.gift__leaf) { position: relative; z-index: 1; }
+/* Herbstdeko: kleine, leicht gedrehte, halbtransparente Blätter in den Ecken */
+.gift__leaf { position: absolute; z-index: 0; width: 2.1em; height: 2.1em; opacity: .55; pointer-events: none; }
+.gift__leaf svg { display: block; width: 100%; height: 100%; }
+.gift__leaf--tl { top: -.55em; left: -.5em; color: #D9772E; transform: rotate(-24deg); }
+.gift__leaf--tr { top: .35em; right: .4em; width: 1.5em; height: 1.5em; color: #B4472B; transform: rotate(32deg); opacity: .45; }
+.gift__leaf--br { right: -.45em; bottom: -.5em; color: #D3A23A; transform: rotate(148deg); }
+.gift__title { font: 600 1em/1.2 var(--serif); color: #4A2E1F; }
 .gift__name {
   margin-top: .25em !important;
   font: 600 1.12em/1.2 var(--display);
@@ -629,15 +636,15 @@ mark.ph {
   margin-top: .55em !important;
   padding: .32em .6em;
   border-radius: .45em;
-  background: rgba(0, 0, 0, .045);
+  background: rgba(180, 130, 80, .12);          /* warmes Beige */
   font: 600 1.5em/1.15 var(--mono);
   letter-spacing: .05em;
   overflow-wrap: anywhere;
   -webkit-user-select: all;
   user-select: all;
 }
-.gift__code--hidden { color: #86868B; letter-spacing: .12em; -webkit-user-select: none; user-select: none; }
-.gift__release { margin-top: .45em !important; font: 400 .62em/1.3 var(--sans); color: #86868B; }
+.gift__code--hidden { color: #9C7C63; letter-spacing: .12em; -webkit-user-select: none; user-select: none; }
+.gift__release { margin-top: .45em !important; font: 400 .62em/1.3 var(--sans); color: #8C7462; }
 .gift__copy, .gift__redeem {
   display: flex;
   align-items: center;
@@ -654,27 +661,36 @@ mark.ph {
   pointer-events: none;
   transition: opacity .4s var(--ease), background .3s var(--ease), color .3s var(--ease), transform .15s var(--ease);
 }
-.gift__copy { margin-top: .6em; background: rgba(0, 113, 227, .11); color: #0071E3; }
+.gift__copy { margin-top: .6em; background: rgba(200, 100, 59, .13); color: #B0532C; }
 .gift__copy svg { width: 1.2em; height: 1.2em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .gift__copy.is-copied { background: #34C759; color: #fff; }
-.gift__redeem { align-self: stretch; margin-top: .7em; background: #0071E3; color: #fff; -webkit-tap-highlight-color: transparent; }
-.gift__copy:active, .gift__redeem:active { transform: scale(.96); }
+.gift__redeem {
+  align-self: stretch;
+  margin-top: .7em;
+  background: linear-gradient(135deg, rgba(200, 100, 59, .9), rgba(224, 144, 74, .9));   /* Terrakotta -> Orange */
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 6px 16px -6px rgba(170, 80, 30, .55);
+  -webkit-tap-highlight-color: transparent;
+}
+.gift__copy:active { transform: scale(.96); }
+.gift__redeem:active { transform: scale(.97); }
 .gift.is-done .gift__copy, .gift.is-done .gift__redeem { opacity: 1; pointer-events: auto; }
 
 .gift__steps {
   align-self: stretch;
   margin-top: .8em;
   padding-top: .7em;
-  border-top: .5px solid rgba(0, 0, 0, .12);
+  border-top: .5px solid rgba(160, 110, 60, .25);
   text-align: left;
 }
-.gift__steps-title { font: 600 .66em/1.2 var(--sans); color: #1D1D1F; }
+.gift__steps-title { font: 600 .66em/1.2 var(--sans); color: #4A2E1F; }
 .gift__steps ol { margin: .35em 0 0; padding: 0; list-style: none; counter-reset: step; }
 .gift__steps li {
   position: relative;
   padding-left: 1.75em;
   font: 400 .64em/1.35 var(--sans);
-  color: #3A3A3C;
+  color: #5A3E2E;
   counter-increment: step;
 }
 .gift__steps li + li { margin-top: .3em; }
@@ -686,12 +702,12 @@ mark.ph {
   width: 1.3em;
   height: 1.3em;
   border-radius: 50%;
-  background: rgba(0, 113, 227, .12);
-  color: #0071E3;
+  background: rgba(200, 100, 59, .16);          /* warmes Terrakotta statt Blau */
+  color: #B0532C;
   font: 600 .9em/1.45em var(--sans);
   text-align: center;
 }
-.gift__note { align-self: stretch; margin-top: .6em !important; font: 400 .58em/1.35 var(--sans); color: #86868B; text-align: left; }
+.gift__note { align-self: stretch; margin-top: .6em !important; font: 400 .58em/1.35 var(--sans); color: #8C7462; text-align: left; }
 .gift__hint {
   margin: 1.3em 0 0;
   padding: .45em 1em;

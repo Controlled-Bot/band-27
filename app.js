@@ -374,6 +374,10 @@
           '</button>' +
         '</div>' +
         '<div class="gift__card">' +
+          // dezente Herbstdeko in den Ecken (dieselben Blattformen wie die fallenden Blätter)
+          '<span class="gift__leaf gift__leaf--tl" aria-hidden="true"><svg viewBox="0 0 100 100">' + LEAF_SHAPES[0] + '</svg></span>' +
+          '<span class="gift__leaf gift__leaf--tr" aria-hidden="true"><svg viewBox="0 0 100 100">' + LEAF_SHAPES[1] + '</svg></span>' +
+          '<span class="gift__leaf gift__leaf--br" aria-hidden="true"><svg viewBox="0 0 100 100">' + LEAF_SHAPES[0] + '</svg></span>' +
           '<p class="gift__title">' + fmt(g.titel) + '</p>' +
           '<p class="gift__name">' + fmt([g.gutschein, g.wert].filter(Boolean).join(' · ')) + '</p>' +
           (g.freigegeben === false ?
@@ -392,7 +396,7 @@
             '</div>' : '') +
           (g.notiz ? '<p class="gift__note">' + fmt(g.notiz) + '</p>' : '') +
           (g.einloesenLink ? '<a class="gift__redeem" href="' + esc(g.einloesenLink) + '" target="_blank" rel="noopener" tabindex="-1">' +
-            esc(g.einloesenText || 'Jetzt einlösen') + '</a>' : '') +
+            '<span aria-hidden="true">🎁</span>' + esc(g.einloesenText || 'Jetzt einlösen') + '</a>' : '') +
         '</div>' +
         '<p class="gift__hint">' + fmt(g.hinweis) + '</p>' +
       '</div>';
