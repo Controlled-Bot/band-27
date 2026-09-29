@@ -256,10 +256,9 @@
     var r = D.rueckseite;
     addPage('back', pgHtml('Rückseite',
       '<div class="back">' +
-        (IMAGES[r.bild] ? '<img class="back__img" src="' + IMAGES[r.bild] + '" alt="" draggable="false"' +
-          (r.fokus ? ' style="object-position:' + esc(r.fokus) + '"' : '') + '>' : '') +
+        (IMAGES[r.bild] ? '<figure class="back__photo"><img class="back__img" src="' + IMAGES[r.bild] + '" alt="" draggable="false"></figure>' : '') +
         (r.sprachnachricht ? voiceHtml(r.sprachnachricht) : '') +
-      '</div>', 'pg--back', { head: false, number: false }), 'page--backcover');
+      '</div>', 'pg--back pg--leaves', { head: false, number: false }), 'page--backcover');
   }
 
   /* ------------------------------------------------------------------ */

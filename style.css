@@ -541,10 +541,12 @@ mark.ph {
 
 /* Geschenk: Azur-Bucht im Hintergrund, hüpfende Box, Glas-Karte */
 .pg--gift .pg__body { position: static; display: flex; overflow: visible; }
-.pg--gift .pg__num { position: relative; z-index: 1; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .45); }
+.pg--gift .pg__num { position: relative; z-index: 1; }
+/* Geschenk und Hinweis im freien Bereich des Motivs: unter der Wimpelkette, über der Torte, zwischen den Ballons */
+.pg--gift .gift { justify-content: flex-start; }
+.pg--gift .gift__stage { height: 12.4em; }
 .gift__bg { position: absolute; inset: 0; z-index: 0; }
-.gift__bg img { display: block; width: 100%; height: 100%; object-fit: cover; filter: saturate(.85); -webkit-user-drag: none; }
-.gift__bg::after { content: ""; position: absolute; inset: 0; background: rgba(255, 255, 255, .3); }   /* leicht verblasst */
+.gift__bg img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center bottom; image-orientation: none; -webkit-user-drag: none; }   /* unverändert, kein Overlay */
 .gift { position: relative; z-index: 1; flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; }
 .gift__stage { position: relative; width: 100%; height: 13em; }
 
@@ -726,36 +728,50 @@ mark.ph {
 .burst { position: fixed; inset: 0; z-index: 1000; pointer-events: none; overflow: hidden; }
 .burst span { position: absolute; top: 0; line-height: 1; will-change: transform, opacity; }
 
-/* Rückseite: Foto über die ganze Seite, Inhalt bezieht sich auf die ganze Seite */
-.page--backcover { background: #1D1D1F; }
-.pg--back::before { display: none; }
-.pg--back .pg__body, .back { position: static; }
-.back__img {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  width: 100%;
+/* Rückseite: Papier wie die anderen Seiten, Foto im Collage-Stil, Sprachnachricht darunter */
+.back {
   height: 100%;
-  object-fit: cover;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.3em;
+}
+/* Nur der Rahmen ist leicht schräg, das Foto darin bleibt unverändert */
+.back__photo {
+  flex: none;
+  height: 23em;
+  margin: 0;
+  padding: .28em;
+  border-radius: .75em;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .08), 0 8px 22px -6px rgba(0, 0, 0, .28);
+  transform: rotate(-2.5deg);
+}
+.back__img {
+  display: block;
+  height: 100%;
+  width: auto;                        /* Rahmen im Seitenverhältnis des Bildes, nichts abgeschnitten */
+  border-radius: .5em;
   image-orientation: none;            /* Originalausrichtung, keine automatische Drehung */
   -webkit-user-drag: none;
 }
 
-/* Sprachnachricht als Glas-Element (wie im iOS-Kontrollzentrum) */
-.voice { position: absolute; z-index: 2; left: 50%; top: 89.5%; transform: translate(-50%, -50%); }   /* unten, unterhalb der Augen */
+/* Sprachnachricht als Glas-Element, warm getönt für das helle Papier */
+.voice { flex: none; }
 .voice__bubble {
   display: flex;
   align-items: center;
   gap: .65em;
   padding: .55em 1em .55em .6em;
-  border: 1px solid rgba(255, 255, 255, .4);
+  border: 1px solid rgba(210, 160, 100, .35);
   border-radius: 1.4em;
-  background: rgba(255, 255, 255, .25);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  backdrop-filter: blur(20px) saturate(180%);
-  color: #fff;
+  background: rgba(255, 244, 230, .72);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  color: #4A2E1F;
   cursor: pointer;
-  box-shadow: 0 8px 24px -6px rgba(0, 0, 0, .3);
+  box-shadow: 0 8px 22px -8px rgba(120, 60, 20, .35);
 }
 .voice__play {
   position: relative;
@@ -763,7 +779,7 @@ mark.ph {
   width: 2.1em;
   height: 2.1em;
   border-radius: 50%;
-  background: rgba(255, 255, 255, .25);
+  background: linear-gradient(135deg, rgba(200, 100, 59, .9), rgba(224, 144, 74, .9));
 }
 .voice__icon { position: absolute; inset: 0; margin: auto; width: 1.15em; height: 1.15em; fill: #fff; transition: opacity .2s, transform .25s var(--spring); }
 .voice__icon--play { transform: translateX(.06em); }
@@ -777,10 +793,10 @@ mark.ph {
   height: calc(var(--h) * 100%);
   min-height: .25em;
   border-radius: .1em;
-  background: rgba(255, 255, 255, .42);         /* noch nicht gespielt: weiß-transparent */
+  background: rgba(74, 46, 31, .25);            /* noch nicht gespielt */
   transition: background-color .15s linear;
 }
-.voice__wave i.is-played { background: #fff; }   /* Fortschritt nur über die Farbe, Balken bleiben statisch */
+.voice__wave i.is-played { background: #B0532C; }   /* Fortschritt nur über die Farbe, Balken bleiben statisch */
 .voice__time { min-width: 2.2em; font: 500 .8em/1 var(--sans); font-variant-numeric: tabular-nums; text-align: right; }
 
 /* =====================================================================
