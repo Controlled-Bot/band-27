@@ -9,6 +9,9 @@
   --muted-2: #86868B;
   --accent: #0071E3;
   --page: #FBF8F3;                   /* leicht warmes Papier statt Reinweiß */
+  --page-back: #F3EFE8;
+  --edge: #DCDCE1;
+  --board: #E3E3E8;
   --cover: #FFFFFF;
   --fill: rgba(120, 120, 128, .14);
   --glass: rgba(255, 255, 255, .72);
@@ -21,6 +24,7 @@
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
   --ease: cubic-bezier(.25, .1, .25, 1);
+  --ease-page: cubic-bezier(.3, .12, .25, 1);
   --spring: cubic-bezier(.34, 1.3, .64, 1);
 
   --bw: 330px;                       /* Buchbreite, per JS gesetzt */
@@ -35,6 +39,9 @@
     --muted-2: #8E8E93;
     --accent: #0A84FF;
     --page: #1E1C1A;
+    --page-back: #252321;
+    --edge: #3A3A3C;
+    --board: #2C2C2E;
     --cover: #1C1C1E;
     --fill: rgba(118, 118, 128, .26);
     --glass: rgba(36, 36, 38, .68);
@@ -68,6 +75,14 @@ body {
 button { font: inherit; color: inherit; -webkit-appearance: none; appearance: none; }
 button > * { pointer-events: none; }
 
+.visually-hidden {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 mark.ph {
   background: rgba(255, 214, 10, .35);
   color: inherit;
@@ -79,7 +94,7 @@ mark.ph {
 }
 
 /* =====================================================================
-   Bühne und Buch (Blättern: StPageFlip)
+   Bühne und Buch
    ===================================================================== */
 
 .stage {
@@ -89,76 +104,146 @@ mark.ph {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: calc(env(safe-area-inset-top) + 16px) env(safe-area-inset-right) calc(env(safe-area-inset-bottom) + 100px) env(safe-area-inset-left);
+  padding: calc(env(safe-area-inset-top) + 16px) 0 calc(env(safe-area-inset-bottom) + 100px);
+  perspective: 1700px;
   touch-action: none;
   animation: stageIn .9s var(--ease) both;
 }
 @keyframes stageIn { from { opacity: 0; transform: translateY(24px) scale(.97); } }
-/* Handy quer: wenig Höhe, Leiste rückt näher an den Rand */
-@media (max-height: 500px) {
-  .stage { padding-bottom: calc(env(safe-area-inset-bottom) + 70px); }
-  .bar { bottom: calc(env(safe-area-inset-bottom) + 8px) !important; }
-}
 
-/* Halter des Buchs: gleitet beim Öffnen/Schließen in die Mitte (Cover rechts vom Rücken, Rückseite links) */
 .book {
   position: relative;
-  flex: none;
-  max-width: 100%;
-  transition: transform .8s var(--ease);
-}
-
-/* StPageFlip-Grundstile (aus page-flip/src/Style/stPageFlip.css, Tippfehler .sft__wrapper korrigiert) */
-.stf__parent { position: relative; display: block; box-sizing: border-box; transform: translateZ(0); touch-action: none; }
-.stf__wrapper { position: relative; width: 100%; box-sizing: border-box; }
-.stf__parent canvas { position: absolute; width: 100%; height: 100%; left: 0; top: 0; }
-.stf__block { position: absolute; width: 100%; height: 100%; box-sizing: border-box; perspective: 2000px; }
-.stf__item { display: none; position: absolute; transform-style: preserve-3d; }
-.stf__outerShadow, .stf__innerShadow, .stf__hardShadow, .stf__hardInnerShadow { position: absolute; left: 0; top: 0; }
-/* Schatten harter Seiten fallen bei uns immer auf die leere Buchhälfte neben dem Deckel
-   (harte Seiten sind nur Cover und Rückseite) und sähen dort wie graue Kästen aus */
-.stf__hardShadow, .stf__hardInnerShadow { display: none !important; }
-
-/* Eine Buchseite. Größe und Lage setzt StPageFlip, hier nur Aussehen */
-.page {
-  overflow: hidden;
-  background: var(--page);
+  width: var(--bw);
+  height: var(--bh);
   font-size: calc(var(--bw) * .046);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, .05), 0 14px 34px -14px rgba(0, 0, 0, .28);
+  transform-style: preserve-3d;
+  transform: rotateX(9deg) rotateY(-17deg) rotateZ(1.5deg);
+  transition: transform 1.15s var(--ease);
+  animation: float 5s ease-in-out infinite;
+  cursor: pointer;
 }
-.page.--right { border-radius: 2px 10px 10px 2px; }
-.page.--left { border-radius: 10px 2px 2px 10px; }
-/* Unscharfer Glas-Hintergrund ist beim Blättern teuer: nur auf ruhenden Seiten */
-.stf__item:not(.--simple) .gift__card, .stf__item:not(.--simple) .gift__hint, .stf__item:not(.--simple) .voice__bubble {
+@keyframes float { 50% { translate: 0 -7px; } }
+.stage.is-open .book { transform: none; animation: none; cursor: default; }
+
+/* Hartes Buchdeckel-Brett hinter den Seiten, mit weichem Schatten */
+.book__board {
+  position: absolute;
+  inset: -6px -10px -7px -7px;
+  border-radius: 6px 16px 16px 6px;
+  background: var(--board);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, .06),
+    0 12px 24px -8px rgba(0, 0, 0, .16),
+    0 40px 70px -20px rgba(0, 0, 0, .28);
+  transition: box-shadow 1.1s var(--ease);
+}
+.stage:not(.is-open) .book__board {
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, .06),
+    0 22px 40px -10px rgba(0, 0, 0, .22),
+    30px 60px 90px -20px rgba(0, 0, 0, .30);
+}
+/* Buchrücken links */
+.book__board::before {
+  content: "";
+  position: absolute;
+  top: 0; bottom: 0; left: 0;
+  width: 12px;
+  border-radius: 6px 0 0 6px;
+  background: linear-gradient(90deg, rgba(0, 0, 0, .14), rgba(0, 0, 0, .03) 70%, rgba(255, 255, 255, .25));
+}
+
+/* Seitenstapel rechts und unten */
+.book__edges {
+  position: absolute;
+  inset: 0;
+  border-radius: 2px 10px 10px 2px;
+  background: var(--page);
+  box-shadow:
+    1px 0 0 var(--edge), 2px 0 0 var(--page), 3px 0 0 var(--edge), 4px 0 0 var(--page),
+    5px 0 0 var(--edge), 6px 0 0 var(--page), 7px 0 0 var(--edge),
+    0 1px 0 var(--edge), 0 2px 0 var(--page), 0 3px 0 var(--edge), 0 4px 0 var(--page), 0 5px 0 var(--edge);
+}
+
+.book__pages {
+  position: absolute;
+  inset: 0;
+  perspective: 1500px;               /* flacher Stapel: nur das drehende Blatt ist 3D */
+}
+
+.sheet {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;     /* dreht um den Buchrücken */
+  transform-style: preserve-3d;
+}
+.sheet.is-turning { will-change: transform; }
+.sheet.is-turning .face { will-change: opacity; }
+/* Unscharfer Glas-Hintergrund ist in 3D teuer (Safari): beim Drehen weglassen, die Flächen sind auch so deckend genug */
+.sheet.is-turning .gift__card, .sheet.is-turning .gift__hint, .sheet.is-turning .voice__bubble {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
 
-/* Einfacher Modus, falls StPageFlip nicht startet: eine Seite nach der anderen */
-.flip--simple { position: relative; width: var(--bw); height: var(--bh); }
-.flip--simple .page { position: absolute; inset: 0; display: none; }
-.flip--simple .page.is-shown { display: block; }
-
-/* Unsichtbare Messseite: Seitenumbruch und Einpassen in Originalgröße */
-.page-measure {
-  position: fixed;
-  left: -10000px;
-  top: 0;
-  visibility: hidden;
-  pointer-events: none;
-}
-.page-measure .page { position: absolute; left: 0; top: 0; width: var(--bw); height: var(--bh); }
-
-/* Cover: harter Buchdeckel */
-.page--cover { background: var(--cover); }
-.page--cover.--right { border-radius: 6px 16px 16px 6px; }
-.cover__front {
+.face {
   position: absolute;
   inset: 0;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
   overflow: hidden;
-  border-radius: inherit;
-  box-shadow: inset 0 0 0 .5px rgba(0, 0, 0, .06);
 }
+.sheet .face--front { background: var(--page); border-radius: 2px 10px 10px 2px; }
+/* Rückseite: leicht getöntes, deckendes Papier mit Falz am Buchrücken (rechts, da gespiegelt) */
+.sheet .face--back {
+  background: linear-gradient(270deg, rgba(0, 0, 0, .07), rgba(0, 0, 0, 0) 9%), var(--page-back);
+  border-radius: 10px 2px 2px 10px;
+  transform: rotateY(180deg);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Licht und Schatten beim Umblättern (Deckkraft und Position setzt das Skript) */
+.shade {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  opacity: 0;
+}
+/* Schatten des drehenden Blatts auf der Seite darunter, wandert mit der Blattkante */
+.shade--under {
+  background: linear-gradient(90deg, rgba(0, 0, 0, .24), rgba(0, 0, 0, .09) 14%, rgba(0, 0, 0, 0) 42%);
+}
+/* Drehende Vorderseite dunkelt zur freien Kante hin ab */
+.face--front > .shade--turn {
+  background: linear-gradient(90deg, rgba(0, 0, 0, .02), rgba(0, 0, 0, .16) 70%, rgba(0, 0, 0, .24));
+}
+/* Rückseite: dunkel beim Aufrichten, hellt beim Ablegen auf; etwas Licht an der freien Kante */
+.face--back > .shade--turn {
+  background: linear-gradient(90deg, rgba(255, 255, 255, .18), rgba(0, 0, 0, .08) 30%, rgba(0, 0, 0, .2));
+}
+
+/* Cover */
+.cover {
+  position: absolute;
+  inset: -6px -10px -7px -7px;
+  z-index: 600;
+  transform-origin: 0 50%;
+  transform: rotateY(0deg);
+  transform-style: preserve-3d;
+  transition: transform 1.15s var(--ease);
+  outline: none;
+}
+.stage.is-open .cover { transform: rotateY(-172deg); }
+.cover.is-gone { visibility: hidden; }
+
+.cover__front {
+  border-radius: 6px 16px 16px 6px;
+  background: var(--cover);
+  box-shadow: inset 0 0 0 .5px rgba(0, 0, 0, .06);
+  transition: opacity 0s linear .45s;      /* Seitenwechsel bei ca. 90°, zusätzlich zu backface-visibility */
+}
+.stage.is-open .cover__front { opacity: 0; transition-delay: .5s; }
 .cover__front::before {               /* Rücken mit Falz */
   content: "";
   z-index: 3;
@@ -176,6 +261,8 @@ mark.ph {
   pointer-events: none;
   opacity: .6;
 }
+.cover__inside { background: var(--board); border-radius: 16px 6px 6px 16px; transform: rotateY(180deg); opacity: 0; transition: opacity 0s linear .45s; pointer-events: none; }
+.stage.is-open .cover__inside { opacity: 1; transition-delay: .5s; }
 
 .cover__content {
   position: absolute;
@@ -225,18 +312,12 @@ mark.ph {
 }
 
 .open-hint {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: calc(env(safe-area-inset-bottom) + 44px);
-  margin: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
+  margin: 34px 0 0;
   font-size: .85rem;
   color: var(--muted);
-  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   transition: opacity .4s var(--ease);
 }
 .open-hint::before {
@@ -247,7 +328,7 @@ mark.ph {
   animation: pulse 1.6s ease-in-out .6s 3;       /* nur beim Laden 3x, danach ruhig */
 }
 @keyframes pulse { 50% { opacity: .35; transform: scale(.75); } }
-.stage:not(.is-front) .open-hint { opacity: 0; }
+.stage.is-open .open-hint { opacity: 0; pointer-events: none; }
 
 /* =====================================================================
    Seiteninhalt
@@ -261,21 +342,14 @@ mark.ph {
   padding: 9% 8.5% 5% 10.5%;
   cursor: default;
 }
-.pg::before {                        /* Bundsteg: Falz am Buchrücken */
+.pg::before {                        /* Bundsteg */
   content: "";
   position: absolute;
-  z-index: 2;
   top: 0; bottom: 0; left: 0;
   width: 7%;
   background: linear-gradient(90deg, rgba(0, 0, 0, .07), rgba(0, 0, 0, 0));
   pointer-events: none;
 }
-/* Linke Seiten der Doppelseite: gespiegelt, Falz rechts */
-.page.--left .pg { padding: 9% 10.5% 5% 8.5%; }
-.page.--left .pg::before { left: auto; right: 0; background: linear-gradient(270deg, rgba(0, 0, 0, .07), rgba(0, 0, 0, 0)); }
-/* Doppelseite: weicher Schatten in der Mitte, als würden die Seiten in den Rücken laufen */
-.stage.is-spread .page.--right .pg::before { width: 10%; background: linear-gradient(90deg, rgba(0, 0, 0, .16), rgba(0, 0, 0, .05) 35%, rgba(0, 0, 0, 0)); }
-.stage.is-spread .page.--left .pg::before { width: 10%; background: linear-gradient(270deg, rgba(0, 0, 0, .16), rgba(0, 0, 0, .05) 35%, rgba(0, 0, 0, 0)); }
 .pg__head {
   flex: none;
   margin-bottom: 1.1em;
@@ -338,6 +412,17 @@ mark.ph {
   font-style: italic;
 }
 .chapter p.coda.cont { margin-top: 0; }
+
+/* Unsichtbare Messseite für den Seitenumbruch */
+.book--measure {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: none;
+  animation: none;
+}
 
 /* Erste Seite: TikTok-Chat */
 .pg--chat { padding-top: 7%; }
@@ -442,7 +527,7 @@ mark.ph {
   transform: rotate(var(--r, 0deg)) scale(.6);
   transition: opacity .5s var(--ease) .2s, transform .7s var(--spring) .2s;
 }
-.page.is-shown .accent { opacity: 1; transform: rotate(var(--r, 0deg)); }
+.sheet:not([inert]) .accent { opacity: 1; transform: rotate(var(--r, 0deg)); }
 .accent--tr { top: 1.6%; right: 3.5%; }
 .accent--br { bottom: 1.2%; right: 3.5%; }
 .accent-anchor { position: relative; display: inline-block; width: 0; height: 0; }
@@ -691,7 +776,7 @@ mark.ph {
 .burst span { position: absolute; top: 0; line-height: 1; will-change: transform, opacity; }
 
 /* Rückseite: Foto über die ganze Seite, Inhalt bezieht sich auf die ganze Seite */
-.page--backcover { background: #1D1D1F; }
+.face--front:has(.pg--back) { background: #1D1D1F; }
 .pg--back::before { display: none; }
 .pg--back .pg__body, .back { position: static; }
 .back__img {
@@ -812,6 +897,7 @@ mark.ph {
 @media (prefers-color-scheme: dark) {
   .cover__front::after { opacity: .1; }
   .cover__front::before { background: linear-gradient(90deg, rgba(0, 0, 0, .45), rgba(0, 0, 0, .12) 55%, rgba(255, 255, 255, .06) 85%, rgba(0, 0, 0, 0)); }
+  .book__board::before { background: linear-gradient(90deg, rgba(0, 0, 0, .4), rgba(0, 0, 0, .1) 70%, rgba(255, 255, 255, .05)); }
   .tchat { --tk-them: #2F2F33; --tk-them-text: #F5F5F7; --tk-sys: #8E8E93; --tk-story: #2A2A2E; }
   .tchat__react { background: #3A3A3C; }
   .leaves { color: rgba(255, 236, 214, .28); }
@@ -824,6 +910,7 @@ mark.ph {
 @media (prefers-reduced-motion: reduce) {
   /* Endlos-Animationen nicht in 0,01 ms-Schleifen laufen lassen (das flackert), sondern einmal */
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .15s !important; }
+  .book { animation: none; }
   /* das ruhige Auf und Ab des Geschenks bleibt, es zeigt, dass man tippen kann */
   .gift__hop { animation-duration: 3.5s !important; animation-iteration-count: infinite !important; }
 }
