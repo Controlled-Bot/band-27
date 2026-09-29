@@ -1,4 +1,4 @@
-/* Band 27: 3D-Buch, Collage, Sprachnachricht, Konfetti, Musik.
+/* Band 27: Buch mit StPageFlip (page-flip.js), Collage, Sprachnachricht, Konfetti, Musik.
    Die Inhalte stehen in inhalt.js (erzeugt aus inhalt/data.js). */
 (function () {
   'use strict';
@@ -85,8 +85,8 @@
   /* Seiten                                                              */
   /* ------------------------------------------------------------------ */
 
-  var sheets = [];        // { el, label }
-  var special = {};
+  var pages = [];         // { el, label, key } in Buchreihenfolge, wie StPageFlip sie bekommt
+  var special = {};       // key -> Seitenindex
 
   // Kleines Geburtstags-Emoji in einer Ecke der Seite: tr = oben rechts, br = unten rechts
   function accentHtml(emoji, pos, deg) {
@@ -100,23 +100,31 @@
     return Array.isArray(v) ? v[i % v.length] : (i ? '' : v);
   }
 
-  function sheetHtml(label, bodyHtml, cls, opts, n) {
+  // Inhalt einer Buchseite (ohne äußeres Seitenelement)
+  function pgHtml(label, bodyHtml, cls, opts, n) {
     var leaves = /\bpg--leaves\b/.test(cls || '') ? '<div class="leaves" aria-hidden="true"></div>' : '';
-    return '<div class="face face--front"><div class="pg ' + (cls || '') + '">' + leaves + (opts.accent || '') +
+    return '<div class="pg ' + (cls || '') + '">' + leaves + (opts.accent || '') +
         (opts.head === false ? '' : '<header class="pg__head">' + fmt(opts.head || label) + '</header>') +
         '<div class="pg__body">' + bodyHtml + '</div>' +
-        (opts.number === false ? '' : '<footer class="pg__num">' + n + '</footer>') +
-      '</div><span class="shade shade--under" aria-hidden="true"></span><span class="shade shade--turn" aria-hidden="true"></span></div>' +
-      '<div class="face face--back"><span class="shade shade--turn" aria-hidden="true"></span></div>';
+        (opts.number === false || !n ? '' : '<footer class="pg__num">' + n + '</footer>') +
+      '</div>';
   }
 
-  function page(label, bodyHtml, cls, opts) {
-    opts = opts || {};
+  // Seitenelement für StPageFlip: data-density "hard" = Buchdeckel
+  function addPage(key, label, innerHtml, cls, hard) {
     var el = document.createElement('div');
-    el.className = 'sheet';
-    el.innerHTML = sheetHtml(label, bodyHtml, cls, opts, sheets.length + 1);
-    sheets.push({ el: el, label: label });
+    el.className = 'page ' + (cls || '');
+    el.setAttribute('data-density', hard ? 'hard' : 'soft');
+    el.innerHTML = innerHtml;
+    special[key] = pages.length;
+    pages.push({ el: el, label: label, key: key });
     return el;
+  }
+
+  var pageNo = 0;
+  function contentPage(key, label, bodyHtml, cls, opts) {
+    opts = opts || {};
+    return addPage(key, label, pgHtml(label, bodyHtml, cls, opts, opts.number === false ? 0 : ++pageNo), '');
   }
 
   /* Kapiteltext auf Buchseiten verteilen: Absätze werden in einer unsichtbaren Seite
@@ -128,16 +136,16 @@
     var k = D.kapitel, list = k.text || [];
     if (!measureEl) {
       measureEl = document.createElement('div');
-      measureEl.className = 'book book--measure is-fitting';
+      measureEl.className = 'page-measure';
       measureEl.setAttribute('aria-hidden', 'true');
       document.body.appendChild(measureEl);
     }
-    var pages = [], body, box, html;
+    var out = [], body, box, html;
 
     function newPage() {
-      var first = !pages.length;
-      measureEl.innerHTML = '<div class="sheet">' +
-        sheetHtml(k.label, (first ? opener(k.label, k.titel) : '') + '<div class="chapter"></div>',
+      var first = !out.length;
+      measureEl.innerHTML = '<div class="page">' +
+        pgHtml(k.label, (first ? opener(k.label, k.titel) : '') + '<div class="chapter"></div>',
           'pg--chapter pg--leaves', { head: first ? false : k.label }, 1) + '</div>';
       body = $('.pg__body', measureEl);
       box = $('.chapter', body);
@@ -147,7 +155,7 @@
       return box.getBoundingClientRect().bottom <= body.getBoundingClientRect().bottom - 3;
     }
     function commit() {
-      pages.push((pages.length ? '' : opener(k.label, k.titel)) + '<div class="chapter">' + html.join('') + '</div>');
+      out.push((out.length ? '' : opener(k.label, k.titel)) + '<div class="chapter">' + html.join('') + '</div>');
     }
 
     newPage();
@@ -182,7 +190,7 @@
     });
     if (html.length) commit();
     measureEl.innerHTML = '';
-    return pages;
+    return out;
   }
 
   function opener(label, title) {
@@ -192,41 +200,51 @@
   function coverHtml() {
     var c = D.cover;
     var img = c.bild && IMAGES[c.bild];
-    return '<div class="face face--front cover__front' + (img ? ' has-image' : '') + '">' +
+    return '<div class="cover__front' + (img ? ' has-image' : '') + '">' +
         (img ? '<img class="cover__img" src="' + img + '" alt="" draggable="false" style="object-position:' + esc(c.fokus || '50% 30%') + '">' +
                '<span class="cover__veil" aria-hidden="true"></span>' : '') +
         '<div class="cover__content">' +
           '<p class="cover__band">' + fmt(c.untertitel) + accentHtml(acc('cover', 0), 'inline', -10) + '</p>' +
           '<h1 class="cover__title">' + fmt(c.titel) + '</h1>' +
         '</div>' +
-      '</div>' +
-      '<div class="face face--back cover__inside"></div>';
+      '</div>';
   }
 
-  function buildPages() {
-    sheets = [];
+  /* Reihenfolge: Cover | Chat · Kapitel-Anfang | Kapitel … | Collage · Geschenk | Rückseite.
+     In der Doppelseite muss die Zahl der Innenseiten gerade sein, sonst endet das Buch nicht
+     mit der Rückseite als geschlossenem Deckel. Dafür kommt nach dem Kapitel eine Leerseite. */
+  function buildPages(spread) {
+    pages = [];
     special = {};
+    pageNo = 0;
 
-    page(D.widmung.titel || 'Chat', tiktokChatHtml(D.widmung), 'pg--chat pg--leaves',
+    addPage('cover', D.cover.untertitel || 'Cover', coverHtml(), 'page--cover', true);
+
+    contentPage('chat', D.widmung.titel || 'Chat', tiktokChatHtml(D.widmung), 'pg--chat pg--leaves',
       { head: D.widmung.titel || false, accent: accentHtml(acc('chat', 0), 'br', -8) });
 
     var k = D.kapitel;
-    special.confetti = sheets.length;
     chapterPages.forEach(function (html, i) {
-      var el = page(k.label, html, 'pg--chapter pg--leaves', {
+      var el = contentPage('k' + i, k.label, html, 'pg--chapter pg--leaves', {
         head: i ? k.label : false,
         accent: accentHtml(acc('kapitel', i), i ? 'br' : 'tr', [9, -7, 6][i % 3])
       });
       if (!i) {
         var cv = document.createElement('canvas');
         cv.className = 'confetti';
-        $('.face--front', el).appendChild(cv);
+        el.appendChild(cv);
       }
     });
+    special.confetti = special.k0;
+
     var co = k.collage;
+    var inner = 1 + chapterPages.length + (co ? 1 : 0) + (D.geschenk ? 1 : 0);
+    if (spread && inner % 2) {
+      addPage('blank', k.label, pgHtml(k.label, '', 'pg--blank pg--leaves', { head: false, number: false }), '');
+    }
+
     if (co) {
-      special.collage = sheets.length;
-      page(k.label,
+      contentPage('collage', k.label,
         (co.titel ? '<h2 class="collage__title">' + fmt(co.titel) + '</h2>' : '') +
         '<div class="collage">' + (co.bilder || []).map(function (f) {
           var src = IMAGES[f.bild];
@@ -240,18 +258,17 @@
     }
 
     if (D.geschenk) {
-      special.gift = sheets.length;
-      page(D.geschenk.label, giftHtml(D.geschenk), 'pg--gift', { head: false, accent: accentHtml(acc('geschenk', 0), 'tr', -8) });
+      contentPage('gift', D.geschenk.label, giftHtml(D.geschenk), 'pg--gift',
+        { head: false, accent: accentHtml(acc('geschenk', 0), 'tr', -8) });
     }
 
     var r = D.rueckseite;
-    page('Rückseite',
+    addPage('back', 'Rückseite', pgHtml('Rückseite',
       '<div class="back">' +
         (IMAGES[r.bild] ? '<img class="back__img" src="' + IMAGES[r.bild] + '" alt="" draggable="false"' +
           (r.fokus ? ' style="object-position:' + esc(r.fokus) + '"' : '') + '>' : '') +
         (r.sprachnachricht ? voiceHtml(r.sprachnachricht) : '') +
-      '</div>', 'pg--back', { head: false, number: false });
-    special.back = sheets.length - 1;
+      '</div>', 'pg--back', { head: false, number: false }), 'page--backcover', true);
   }
 
   /* ------------------------------------------------------------------ */
@@ -278,8 +295,8 @@
 
   var voiceStop = null;
 
-  function wireVoice(sheet) {
-    var btn = $('.voice__bubble', sheet), audio = $('.voice__audio', sheet);
+  function wireVoice(root) {
+    var btn = $('.voice__bubble', root), audio = $('.voice__audio', root);
     if (!btn || !audio) return;
     var bars = btn.querySelectorAll('.voice__wave i'), time = $('.voice__time', btn);
     var total = time.textContent, raf = 0;
@@ -390,8 +407,8 @@
       '</div>';
   }
 
-  function wireGift(sheet) {
-    var gift = $('.gift', sheet), box = $('.gift__box', sheet), copy = $('.gift__copy', sheet), redeem = $('.gift__redeem', sheet);
+  function wireGift(root) {
+    var gift = $('.gift', root), box = $('.gift__box', root), copy = $('.gift__copy', root), redeem = $('.gift__redeem', root);
     var g = D.geschenk, opened = false;
 
     box.addEventListener('click', function () {
@@ -409,7 +426,7 @@
     });
 
     if (copy) copy.addEventListener('click', function () {
-      var label = copy.querySelector('span'), code = $('.gift__code', sheet);
+      var label = copy.querySelector('span'), code = $('.gift__code', root);
       copyText(code.getAttribute('data-code')).then(function (ok) {
         haptic(10);
         label.textContent = ok ? g.kopiertText : 'Bitte manuell kopieren';
@@ -479,12 +496,12 @@
   /* ------------------------------------------------------------------ */
 
   // Antippen holt ein Foto nach vorne und vergrößert es kurz; nochmal tippen legt es zurück
-  function wireCollage(sheet) {
+  function wireCollage(root) {
     var z = 10;
-    Array.prototype.forEach.call(sheet.querySelectorAll('.collage__photo'), function (ph) {
+    Array.prototype.forEach.call(root.querySelectorAll('.collage__photo'), function (ph) {
       ph.addEventListener('click', function () {
         var was = ph.classList.contains('is-front');
-        Array.prototype.forEach.call(sheet.querySelectorAll('.collage__photo.is-front'), function (x) { x.classList.remove('is-front'); });
+        Array.prototype.forEach.call(root.querySelectorAll('.collage__photo.is-front'), function (x) { x.classList.remove('is-front'); });
         if (!was) { ph.style.zIndex = ++z; ph.classList.add('is-front'); haptic(6); }
       });
     });
@@ -507,8 +524,8 @@
   var LEAF_COUNT = 10;
   var WIND_LINE = '<svg viewBox="0 0 120 14" preserveAspectRatio="none"><path pathLength="100" d="M2 9C26 3 46 3 64 7S100 12 118 5"/></svg>';
 
-  var leafFields = {};        // Blattfelder je Blattindex
-  var leafActive = null, leafRaf = 0, leafLast = 0, leafTime = 0;
+  var leafFields = {};        // Blattfelder je Seitenindex
+  var leafActive = [], leafRaf = 0, leafLast = 0, leafTime = 0;
   var gust = { t: 0, next: 5, dir: 1, power: 0 };
 
   function rnd(a, b) { return a + Math.random() * (b - a); }
@@ -561,11 +578,11 @@
   function setupLeaves() {
     stopLeaves();
     leafFields = {};
-    sheets.forEach(function (s, i) {
-      var layer = $('.leaves', s.el);
+    pages.forEach(function (pg, i) {
+      var layer = $('.leaves', pg.el);
       if (!layer) return;
       layer.innerHTML = '';
-      var w = layer.clientWidth || book.clientWidth, h = layer.clientHeight || book.clientHeight;
+      var w = geo.pw, h = geo.ph;
       var f = { layer: layer, w: w, h: h, leaves: [] };
       for (var n = 0; n < LEAF_COUNT; n++) f.leaves.push(makeLeaf(layer, w, h, true));
       f.leaves.forEach(function (lf) { drawLeaf(lf, w); });
@@ -573,39 +590,22 @@
     });
   }
 
-  // Nur die aufgeschlagene Seite animieren; bei „Bewegung reduzieren“ bleiben die Blätter stehen
-  function leavesFor(idx) {
-    var f = isOpen ? leafFields[idx] : null;
-    if (f === leafActive) return;
+  // Nur die aufgeschlagenen Seiten animieren; bei „Bewegung reduzieren“ bleiben die Blätter stehen
+  function leavesFor(list) {
     stopLeaves();
-    leafActive = f || null;
-    if (!leafActive || reduceMotion) return;
+    leafActive = list.map(function (i) { return leafFields[i]; }).filter(Boolean);
+    if (!leafActive.length || reduceMotion) return;
     leafLast = 0;
     leafRaf = requestAnimationFrame(leafFrame);
-  }
-  // Nach Größenänderung: Blätter proportional mitziehen
-  function sizeLeaves() {
-    Object.keys(leafFields).forEach(function (k) {
-      var f = leafFields[k], w = f.layer.clientWidth, h = f.layer.clientHeight;
-      if (!w || !h || (w === f.w && h === f.h)) return;
-      f.leaves.forEach(function (lf) {
-        lf.x *= w / f.w; lf.y *= h / f.h;
-        lf.size *= w / f.w;
-        lf.el.style.width = lf.el.style.height = lf.size + 'px';
-      });
-      f.w = w; f.h = h;
-      f.leaves.forEach(function (lf) { drawLeaf(lf, w); });
-    });
   }
   function stopLeaves() {
     cancelAnimationFrame(leafRaf);
     leafRaf = 0;
-    leafActive = null;
+    leafActive = [];
   }
 
   function leafFrame(now) {
-    var f = leafActive;
-    if (!f) return;
+    if (!leafActive.length) return;
     var dt = leafLast ? Math.min(.05, (now - leafLast) / 1000) : 0;
     leafLast = now;
     leafTime += dt;
@@ -619,24 +619,26 @@
       gust.dir = Math.abs(breeze) > 2 ? (breeze > 0 ? 1 : -1) : (Math.random() < .5 ? -1 : 1);
       gust.power = rnd(55, 85);
       gust.next = rnd(8, 15);
-      windLines(f, gust.dir);
+      leafActive.forEach(function (f) { windLines(f, gust.dir); });
     }
     gust.t += dt;
     var env = gust.t < .45 ? gust.t / .45 : Math.max(0, 1 - (gust.t - .45) / 1.9);
     var g = gust.dir * gust.power * env * env;
     var wind = breeze + g;
 
-    var w = f.w, h = f.h;
-    f.leaves.forEach(function (lf) {
-      lf.y += lf.vy * dt * (1 + Math.abs(g) / 160);
-      lf.x += wind * lf.drag * dt;
-      lf.ph += lf.om * dt;
-      lf.rot += lf.spin * dt * (1 + Math.abs(g) / 40);
-      lf.flip += dt * (1.1 + Math.abs(g) / 25);
-      if (lf.y > h + lf.size) resetLeaf(lf, w, h, false);
-      else if (lf.x > w + lf.size * 2) lf.x = -lf.size * 1.5;
-      else if (lf.x < -lf.size * 2) lf.x = w + lf.size * .5;
-      drawLeaf(lf, w);
+    leafActive.forEach(function (f) {
+      var w = f.w, h = f.h;
+      f.leaves.forEach(function (lf) {
+        lf.y += lf.vy * dt * (1 + Math.abs(g) / 160);
+        lf.x += wind * lf.drag * dt;
+        lf.ph += lf.om * dt;
+        lf.rot += lf.spin * dt * (1 + Math.abs(g) / 40);
+        lf.flip += dt * (1.1 + Math.abs(g) / 25);
+        if (lf.y > h + lf.size) resetLeaf(lf, w, h, false);
+        else if (lf.x > w + lf.size * 2) lf.x = -lf.size * 1.5;
+        else if (lf.x < -lf.size * 2) lf.x = w + lf.size * .5;
+        drawLeaf(lf, w);
+      });
     });
     leafRaf = requestAnimationFrame(leafFrame);
   }
@@ -710,74 +712,128 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* Buch: Aufbau, Größe, Öffnen, Blättern                               */
+  /* Buch (StPageFlip): Aufbau, Größe, Blättern                          */
   /* ------------------------------------------------------------------ */
 
-  var book, cover, stage, isOpen = false, current = 0, animating = false;
-  var chapterPages = null;
+  var RATIO = 1.45;                                // Seitenhöhe / Seitenbreite
+  var FLIP_MS = reduceMotion ? 300 : 900;
+  var FORWARD = 0;                                 // FlipDirection.FORWARD in StPageFlip
+  var stage, holder, flip = null, geo = null, chapterPages = null, shown = [];
 
   function buildBook() {
     stage = $('#stage');
-    book = $('#book');
-    book.innerHTML =
-      '<span class="book__board" aria-hidden="true"></span>' +
-      '<span class="book__edges" aria-hidden="true"></span>' +
-      '<div class="book__pages"></div>' +
-      '<div class="cover" role="button" tabindex="0" aria-label="Buch öffnen">' + coverHtml() + '</div>';
-    cover = $('.cover', book);
-
+    holder = $('#book');
     stage.hidden = false;
-    layout();
-    setupGestures();
-    window.addEventListener('resize', debounce(layout, 150));
-    if (document.fonts && document.fonts.ready) document.fonts.ready.then(refresh);
-    window.addEventListener('load', refresh);
+    layout(true);
+    setupControls();
+    window.addEventListener('resize', debounce(function () { layout(false); }, 200));
+    // Nach dem Laden der Schriften neu umbrechen (Maße ändern sich leicht)
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { rebuild(); });
   }
 
-  // Blätter (neu) erzeugen und einsetzen
-  function mountSheets() {
-    buildPages();
-    var holder = $('.book__pages', book);
-    holder.innerHTML = '';
-    sheets.forEach(function (s) { holder.appendChild(s.el); });   // Reihenfolge egal, die Ebenen regelt z-index
-    if (special.collage != null) wireCollage(sheets[special.collage].el);
-    if (special.gift != null) wireGift(sheets[special.gift].el);
-    wireVoice(sheets[special.back].el);
-    setupLeaves();
-    current = Math.min(current, sheets.length - 1);
-    placeSheets();
+  /* Größe: Doppelseite bei Querformat (Desktop, Handy quer), Einzelseite bei Hochformat.
+     Die Seite wird so groß wie möglich, aber nie größer als der freie Platz. */
+  function measure() {
+    var cs = getComputedStyle(stage);
+    var availW = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 56;
+    var availH = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - 8;
+    var spread = window.innerWidth > window.innerHeight * 1.05;
+    var pw = Math.min((spread ? availW / 2 : availW), availH / RATIO, spread ? 440 : 420);
+    if (spread && pw < 150) { spread = false; pw = Math.min(availW, availH / RATIO, 420); }
+    pw = Math.max(150, Math.floor(pw));
+    return { spread: spread, pw: pw, ph: Math.floor(pw * RATIO) };
   }
 
-  // Nach Größen- oder Schriftänderung: Kapitel neu umbrechen (nur wenn sich etwas ändert), dann Texte einpassen
-  function refresh() {
-    if (animating) { setTimeout(refresh, 400); return; }
-    var pages = paginateChapter();
-    if (!chapterPages || pages.join('|') !== chapterPages.join('|')) {
-      chapterPages = pages;
-      mountSheets();
-    }
-    fitAll();
-    sizeLeaves();
-  }
-
-  function layout() {
-    var vw = window.innerWidth, vh = window.innerHeight;
-    var reserve = 116;                       // Navigationsleiste + Abstände
-    var w = Math.min(vw - 56, (vh - reserve - 40) / 1.45, 420);
-    w = Math.max(230, Math.floor(w));
+  function layout(force) {
+    var g = measure();
+    if (!force && geo && g.spread === geo.spread && Math.abs(g.pw - geo.pw) < 2) return;
+    geo = g;
     var root = document.documentElement.style;
-    root.setProperty('--bw', w + 'px');
-    root.setProperty('--bh', Math.floor(w * 1.45) + 'px');
-    refresh();
+    root.setProperty('--bw', geo.pw + 'px');
+    root.setProperty('--bh', geo.ph + 'px');
+    stage.classList.toggle('is-spread', geo.spread);
+    rebuild();
   }
 
-  // Texte an die Seitengröße anpassen (notfalls scrollt die Seite)
+  // Buch komplett (neu) aufbauen, die aktuelle Seite bleibt erhalten
+  function rebuild() {
+    if (flip && flip.getState() !== 'read') { setTimeout(rebuild, 300); return; }
+    var key = flip ? pages[flip.getCurrentPageIndex()].key : 'cover';
+    stopLeaves();
+    if (voiceStop) voiceStop();
+    if (flip) { flip.destroy(); flip = null; }
+
+    chapterPages = paginateChapter();
+    buildPages(geo.spread);
+
+    // In Originalgröße einpassen, solange alle Seiten sichtbar sind
+    pages.forEach(function (p) { measureEl.appendChild(p.el); });
+    fitAll();
+    setupLeaves();
+    if (special.collage != null) wireCollage(pages[special.collage].el);
+    if (special.gift != null) wireGift(pages[special.gift].el);
+    wireVoice(pages[special.back].el);
+    pages.forEach(function (p) { shield(p.el); });
+
+    holder.innerHTML = '<div class="flip"></div>';
+    holder.style.width = (geo.spread ? geo.pw * 2 : geo.pw) + 'px';
+    var start = special[key] != null ? special[key] : 0;
+    flip = new St.PageFlip($('.flip', holder), {
+      width: geo.pw,
+      height: geo.ph,
+      size: 'stretch',
+      // Grenzen so gesetzt, dass StPageFlip dieselbe Ausrichtung wählt wie measure()
+      minWidth: geo.spread ? Math.floor(geo.pw * 0.8) : Math.ceil(geo.pw * 0.6),
+      maxWidth: geo.pw,
+      minHeight: Math.floor(geo.ph * 0.5),
+      maxHeight: geo.ph,
+      usePortrait: !geo.spread,
+      showCover: true,
+      autoSize: true,
+      drawShadow: true,
+      maxShadowOpacity: 0.8,                     // Falz beim Umschlagen deutlich sichtbar
+      flippingTime: FLIP_MS,
+      startPage: start,
+      mobileScrollSupport: false,
+      clickEventForward: true,
+      showPageCorners: !reduceMotion,
+      swipeDistance: 30
+    });
+    flip.on('flip', function () { settle(); });
+    flip.on('changeState', function (e) { onState(e.data); });
+    flip.loadFromHTML(pages.map(function (p) { return p.el; }));
+    loosenRelease(flip.getFlipController());
+    measureEl.innerHTML = '';
+    shown = [];
+    settle(true);
+  }
+
+  /* Loslassen beim Ziehen: StPageFlip blättert nur fertig, wenn die Ecke über den Buchrücken
+     gezogen wurde (Hochformat: fast bis zum linken Seitenrand). Hier reichen ~35 % der Seite,
+     sonst federt das Blatt zurück. */
+  function loosenRelease(fc) {
+    var stopMove = fc.stopMove;
+    if (!stopMove || !fc.animateFlippingTo) return;          // andere Library-Version: Standard behalten
+    fc.stopMove = function () {
+      var calc = this.calc;
+      if (calc) {
+        var pos = calc.getPosition(), rect = this.getBoundsRect();
+        if (pos.x > 0 && pos.x < rect.pageWidth * 0.65) {
+          this.animateFlippingTo(pos, { x: -rect.pageWidth, y: calc.getCorner() === 'bottom' ? rect.height : 0 }, true);
+          return;
+        }
+      }
+      stopMove.call(this);
+    };
+  }
+
+  // Seiten einpassen: Schrift der Seite verkleinern, bis alles passt (notfalls scrollt sie)
   function fitAll() {
-    if (book) book.classList.add('is-fitting');
-    sheets.forEach(function (s) {
-      var body = $('.pg__body', s.el);
+    measureEl.classList.add('is-fitting');
+    pages.forEach(function (p) {
+      var body = $('.pg__body', p.el);
       if (!body) return;
-      var f = 1, min = s.el.querySelector('.tchat') ? 0.5 : 0.74;   // der Chat darf nie scrollen
+      var f = 1, min = p.el.querySelector('.tchat') ? 0.5 : 0.74;   // der Chat darf nie scrollen
       body.style.setProperty('--fit', '1');
       while (body.scrollHeight > body.clientHeight + 1 && f > min) {
         f -= 0.03;
@@ -785,282 +841,126 @@
       }
       body.classList.toggle('is-scroll', body.scrollHeight > body.clientHeight + 1);
     });
-    if (book) { void book.offsetWidth; book.classList.remove('is-fitting'); }
+    measureEl.classList.remove('is-fitting');
   }
 
-  /* Umblättern
-     - Nur das drehende Blatt ist 3D (rotateY um den Buchrücken), alle anderen liegen flach.
-       Der Stapel ist kein gemeinsamer 3D-Kontext mehr, so gilt z-index und nichts flackert.
-     - Animiert werden ausschließlich transform und opacity per Web Animations API, die laufen
-       auf dem Compositor (GPU) und ruckeln nicht, auch wenn der Main-Thread kurz beschäftigt ist.
-     - Beim Wischen wird derselbe Zustand direkt gesetzt (frameAt), die Animation danach startet
-       exakt an dieser Stelle. */
+  // Bedienelemente auf den Seiten dürfen nie ein Umblättern starten
+  function shield(root) {
+    Array.prototype.forEach.call(root.querySelectorAll('.gift__card, .gift__box, .voice, .collage__photo, button, a'), function (el) {
+      ['mousedown', 'touchstart'].forEach(function (ev) {
+        el.addEventListener(ev, function (e) { e.stopPropagation(); }, { passive: true });
+      });
+    });
+  }
 
-  var TURN_MS = 650;
-  var TURN_EASE = 'cubic-bezier(0.645, 0.045, 0.355, 1)';
-  var RELEASE_EASE = 'cubic-bezier(0.22, 0.61, 0.36, 1)';   // nach dem Loslassen: startet mit Schwung, kein Stocken
-  var turnAnims = [];
+  // Sichtbare Seiten zu einem Seitenindex
+  function visibleAt(i) {
+    var last = pages.length - 1;
+    if (!geo.spread || i === 0 || i === last) return [i];
+    return [i, Math.min(i + 1, last)];
+  }
 
-  function parts(s) {
-    if (!s.parts) {
-      s.parts = {
-        sheet: s.el,
-        front: $('.face--front', s.el),
-        back: $('.face--back', s.el),
-        turnF: $('.face--front > .shade--turn', s.el),
-        turnB: $('.face--back > .shade--turn', s.el),
-        under: $('.face--front > .shade--under', s.el)
-      };
+  // Geschlossenes Buch mittig: Cover liegt rechts vom Rücken, Rückseite links davon
+  function setShift(i) {
+    var last = pages.length - 1, x = 0;
+    if (geo.spread) x = i === 0 ? -geo.pw / 2 : (i === last ? geo.pw / 2 : 0);
+    holder.style.transform = 'translate3d(' + x + 'px,0,0)';
+    var closed = i === 0 || i === last;
+    stage.classList.toggle('is-closed', closed);
+    stage.classList.toggle('is-front', i === 0);
+  }
+
+  function onState(state) {
+    if (state === 'flipping' || state === 'user_fold') stopLeaves();
+    if (state === 'flipping') {
+      // Zielseite schon beim Start kennen, damit das Buch gleichzeitig in die Mitte gleitet
+      var calc = flip.getFlipController().calc, i = flip.getCurrentPageIndex(), last = pages.length - 1;
+      if (calc && calc.getDirection) {
+        var fwd = calc.getDirection() === FORWARD;
+        var step = geo.spread ? 2 : 1;
+        var dest = fwd ? (i === 0 ? 1 : i + step) : (i === last && geo.spread ? last - 2 : i - step);
+        dest = Math.max(0, Math.min(last, dest));
+        setShift(dest);
+        setBar(dest > 0);
+        updateBar(visibleAt(dest));
+      }
     }
-    return s.parts;
+    if (state === 'read') settle();
   }
 
-  // Zustand bei Fortschritt p (0 = flach, 1 = umgeblättert)
-  function frameAt(p) {
-    var a = Math.PI * p;
-    return {
-      sheet: { transform: 'rotateY(' + (-180 * p).toFixed(2) + 'deg)' },
-      front: { opacity: p < .5 ? 1 : 0 },                                  // Vorderseite ab 90° weg (auch gegen Safari-Backface-Fehler)
-      back: { opacity: p <= .5 ? 0 : (p > .84 ? Math.max(0, (1 - p) / .16) : 1) },   // Rückseite, am Ende ausblenden
-      turnF: { opacity: Math.min(1, p * 2) },                              // drehende Seite dunkelt zur Kante hin ab
-      turnB: { opacity: Math.min(1, (1 - p) * 2) },                        // Rückseite hellt beim Ablegen auf
-      under: { transform: 'translateX(' + (Math.cos(a) * 100).toFixed(2) + '%)', opacity: Math.sin(a) }   // Schatten folgt der Blattkante
-    };
-  }
-
-  function applyFrame(t, p) {
-    var f = frameAt(p), P = parts(t.s), U = t.u ? parts(t.u) : null;
-    ['sheet', 'front', 'back', 'turnF', 'turnB'].forEach(function (k) {
-      for (var prop in f[k]) P[k].style[prop] = f[k][prop];
-    });
-    if (U) { U.under.style.transform = f.under.transform; U.under.style.opacity = f.under.opacity; }
-  }
-
-  // Keyframes aus Stützpunkten zwischen p0 und p1 (inkl. der Umschaltpunkte, damit sie scharf bleiben)
-  function runTurn(t, p0, p1, ms, easing, done) {
-    var ps = [];
-    for (var i = 0; i <= 12; i++) ps.push(p0 + (p1 - p0) * i / 12);
-    [.4999, .5001, .84].forEach(function (x) { if ((x - p0) * (x - p1) < 0) ps.push(x); });
-    ps.sort(function (a, b) { return p1 > p0 ? a - b : b - a; });
-    var span = p1 - p0 || 1, frames = {};
-    ps.forEach(function (p) {
-      var f = frameAt(p), off = Math.min(1, Math.max(0, (p - p0) / span));
-      for (var k in f) (frames[k] = frames[k] || []).push(Object.assign({ offset: off }, f[k]));
-    });
-    var P = parts(t.s), U = t.u ? parts(t.u) : null;
-    var opts = { duration: ms, easing: easing, fill: 'forwards' };
-    turnAnims = ['sheet', 'front', 'back', 'turnF', 'turnB'].map(function (k) { return P[k].animate(frames[k], opts); });
-    if (U) turnAnims.push(U.under.animate(frames.under, opts));
-    turnAnims[0].onfinish = done;
-  }
-
-  // Blatt zum Drehen vorbereiten: dir 1 = weiter (aktuelles Blatt), -1 = zurück (vorheriges Blatt)
-  function beginTurn(dir) {
-    var idx = dir > 0 ? current : current - 1;
-    var t = { dir: dir, s: sheets[idx], u: dir > 0 ? sheets[current + 1] : sheets[current] };
-    stopLeaves();                                   // Blätter-Animation pausiert, Main-Thread bleibt frei
-    t.s.el.style.visibility = 'visible';
-    t.s.el.style.zIndex = 10;
-    t.s.el.classList.add('is-turning');
-    if (t.u) t.u.el.style.visibility = 'visible';
-    if (!reduceMotion) applyFrame(t, dir > 0 ? 0 : 1);
-    return t;
-  }
-
-  function endTurn(t, completed) {
-    if (completed) current += t.dir;
-    placeSheets();                                  // Endzustand setzen, erst dann Animationen lösen: kein Aufblitzen
-    turnAnims.forEach(function (a) { a.cancel(); });
-    turnAnims = [];
-    animating = false;
-    if (completed) onArrive();
-  }
-
-  // Grundstellung: aktuelles Blatt oben, nächstes fertig darunter, alle anderen unsichtbar
-  function placeSheets() {
-    if (voiceStop && current !== special.back) voiceStop();
-    sheets.forEach(function (s, i) {
-      var P = parts(s);
-      s.el.classList.remove('is-turning');
-      s.el.style.transform = '';
-      s.el.style.opacity = '';
-      s.el.style.zIndex = i === current ? 3 : 2;
-      s.el.style.visibility = (i === current || i === current + 1) ? 'visible' : 'hidden';
-      P.front.style.opacity = P.back.style.opacity = P.turnF.style.opacity = P.turnB.style.opacity = '';
-      P.under.style.opacity = P.under.style.transform = '';
-      if (i === current) s.el.removeAttribute('inert'); else s.el.setAttribute('inert', '');
-    });
-    leavesFor(current);
-    updateBar();
-  }
-
-  function updateBar() {
-    $('#bar-label').textContent = sheets[current] ? sheets[current].label : '';
-    $('#bar-fill').style.transform = 'scaleX(' + ((current + 1) / sheets.length) + ')';
-    $('#prev').disabled = !isOpen;
-    $('#next').disabled = current >= sheets.length - 1;
-  }
-
-  function onArrive() {
-    if (current === special.confetti) {
-      var cv = $('.confetti', sheets[current].el);
-      setTimeout(function () { if (current === special.confetti) confetti(cv); }, 200);
+  // Ruhezustand nach dem Blättern: sichtbare Seiten markieren, Leiste, Blätter, Konfetti
+  function settle(initial) {
+    if (!flip) return;
+    var i = flip.getCurrentPageIndex(), vis = visibleAt(i);
+    var before = shown;
+    shown = vis;
+    pages.forEach(function (p, n) { p.el.classList.toggle('is-shown', vis.indexOf(n) >= 0); });
+    setShift(i);
+    setBar(i > 0, initial);
+    updateBar(vis);
+    if (voiceStop && vis.indexOf(special.back) < 0) voiceStop();
+    if (flip.getState() === 'read') leavesFor(vis);
+    if (!initial && vis.indexOf(special.confetti) >= 0 && before.indexOf(special.confetti) < 0) {
+      var cv = $('.confetti', pages[special.confetti].el);
+      setTimeout(function () { if (shown.indexOf(special.confetti) >= 0) confetti(cv); }, 150);
     }
   }
 
-  function openBook() {
-    if (isOpen || animating) return;
-    animating = true;
-    isOpen = true;
-    haptic(10);
-    stage.classList.add('is-open');
-    cover.setAttribute('aria-label', 'Buch');
-    leavesFor(current);
+  var barTimer = 0;
+  function setBar(show, instant) {
     var bar = $('#bar');
-    bar.hidden = false;
-    updateBar();
-    requestAnimationFrame(function () { requestAnimationFrame(function () { bar.classList.add('is-shown'); }); });
-    setTimeout(function () {
-      cover.classList.add('is-gone');
-      animating = false;
-    }, reduceMotion ? 50 : 1150);
-  }
-
-  function closeBook() {
-    if (!isOpen || animating) return;
-    animating = true;
-    isOpen = false;
-    cover.classList.remove('is-gone');
-    void cover.offsetWidth;
-    stage.classList.remove('is-open');
-    cover.setAttribute('aria-label', 'Buch öffnen');
-    stopLeaves();
-    $('#bar').classList.remove('is-shown');
-    setTimeout(function () { $('#bar').hidden = true; animating = false; }, reduceMotion ? 50 : 1100);
-  }
-
-  function canTurn(dir) {
-    return isOpen && (dir > 0 ? current < sheets.length - 1 : current > 0);
-  }
-
-  // Ganzes Blatt umblättern (Tippen, Pfeile, Tastatur). Während einer Animation wird nichts angenommen.
-  function turn(dir) {
-    if (animating || !canTurn(dir)) return;
-    animating = true;
-    haptic(6);
-    var t = beginTurn(dir);
-    if (reduceMotion) { crossfade(t); return; }
-    runTurn(t, dir > 0 ? 0 : 1, dir > 0 ? 1 : 0, TURN_MS, TURN_EASE, function () { endTurn(t, true); });
-  }
-
-  // Bewegung reduzieren: kurzer Crossfade statt Drehung
-  function crossfade(t) {
-    var el = t.s.el, a;
-    if (t.dir > 0) a = el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, easing: 'ease', fill: 'forwards' });
-    else a = el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'ease', fill: 'forwards' });
-    turnAnims = [a];
-    a.onfinish = function () { endTurn(t, true); };
-  }
-
-  function next() {
-    if (!isOpen) { openBook(); return; }
-    turn(1);
-  }
-  function prev() {
-    if (!isOpen || animating) return;
-    if (current > 0) turn(-1); else closeBook();
-  }
-
-  /* Wischen und Tippen
-     - Wischen folgt dem Finger: die Blattkante bleibt unter dem Finger (Winkel = acos der Kantenposition).
-     - Loslassen: ab 30 % oder bei schnellem Wischen fertig blättern, sonst zurückfedern.
-     - Tippen rechts = weiter, links = zurück. Bedienelemente lösen nie ein Umblättern aus. */
-  function setupGestures() {
-    var st = null, raf = 0;
-
-    function interactive(t) {
-      return t.closest && t.closest('button, a, input, .bar, .gift__card, .voice');
+    clearTimeout(barTimer);
+    if (show) {
+      if (bar.hidden) {
+        bar.hidden = false;
+        requestAnimationFrame(function () { requestAnimationFrame(function () { bar.classList.add('is-shown'); }); });
+      } else bar.classList.add('is-shown');
+    } else {
+      bar.classList.remove('is-shown');
+      if (instant) bar.hidden = true;
+      else barTimer = setTimeout(function () { bar.hidden = true; }, 500);
     }
-    function track(e) {
-      st.pts.push([e.clientX, performance.now()]);
-      if (st.pts.length > 6) st.pts.shift();
-    }
-    function velocity(g) {                         // px/ms aus den letzten ~100 ms
-      var now = performance.now(), pts = g.pts.filter(function (q) { return now - q[1] < 100; });
-      if (pts.length < 2) return 0;
-      var a = pts[0], b = pts[pts.length - 1];
-      return (b[0] - a[0]) / Math.max(1, b[1] - a[1]);
-    }
-    function dragP(x) {
-      var dx = x - st.ox, w = book.clientWidth;
-      var c = st.turn.dir > 0 ? 1 + dx / w : dx / w - 1;
-      return Math.acos(Math.min(1, Math.max(-1, c))) / Math.PI;
-    }
+  }
 
-    stage.addEventListener('pointerdown', function (e) {
-      if (st || (e.pointerType === 'mouse' && e.button !== 0)) return;   // zweiter Finger wird ignoriert
-      st = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now(), inter: interactive(e.target), mode: 0, pts: [] };
-      track(e);
+  // Fortschritt: Titel der ersten sichtbaren Inhaltsseite, Balken bis zur letzten sichtbaren Seite
+  function updateBar(vis) {
+    var p = pages[vis[0]];
+    if (p.key === 'blank' && vis[1] != null) p = pages[vis[1]];
+    $('#bar-label').textContent = p.label;
+    $('#bar-fill').style.transform = 'scaleX(' + ((vis[vis.length - 1] + 1) / pages.length) + ')';
+    $('#prev').disabled = vis[0] === 0;
+    $('#next').disabled = vis[vis.length - 1] >= pages.length - 1;
+  }
+
+  function next() { if (flip && flip.getState() === 'read') flip.flipNext(); }
+  function prev() { if (flip && flip.getState() === 'read') flip.flipPrev(); }
+
+  /* Tippen auf dem Handy: StPageFlip beginnt eine Touch-Geste erst nach 250 ms Halten,
+     ein kurzer Tap würde sonst nichts tun. Links (bzw. linker Rand der Einzelseite) = zurück,
+     sonst weiter. Bedienelemente erreichen diesen Handler nicht (shield). */
+  function setupTap() {
+    var t0 = null;
+    holder.addEventListener('touchstart', function (e) {
+      var t = e.changedTouches[0];
+      t0 = e.touches.length === 1 ? { x: t.clientX, y: t.clientY, time: Date.now() } : null;
+    }, { passive: true });
+    holder.addEventListener('touchend', function (e) {
+      var t = e.changedTouches[0], s = t0;
+      t0 = null;
+      if (!s || !flip || flip.getState() !== 'read') return;
+      if (Date.now() - s.time > 240 || Math.abs(t.clientX - s.x) > 10 || Math.abs(t.clientY - s.y) > 10) return;
+      var r = holder.getBoundingClientRect(), i = flip.getCurrentPageIndex(), last = pages.length - 1;
+      var x = t.clientX - r.left, back;
+      if (i === 0) back = false;                                   // geschlossen vorne: öffnen
+      else if (i === last) back = true;                            // geschlossen hinten: wieder aufschlagen
+      else if (geo.spread) back = x < r.width / 2;                 // linke Seite = zurück
+      else back = x < r.width * 0.3;                               // Einzelseite: linker Rand = zurück
+      if (back) flip.flipPrev(); else flip.flipNext();
     });
+  }
 
-    stage.addEventListener('pointermove', function (e) {
-      if (!st || e.pointerId !== st.id) return;
-      track(e);
-      var dx = e.clientX - st.x, dy = e.clientY - st.y;
-      if (st.mode === 0) {
-        if (Math.abs(dx) < 10 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
-        var dir = dx < 0 ? 1 : -1;
-        if (animating || !canTurn(dir)) { st.mode = -1; return; }
-        if (reduceMotion) { st.mode = -1; turn(dir); return; }
-        animating = true;                           // ab jetzt keine anderen Eingaben (Tasten, Pfeile)
-        st.mode = 1;
-        st.ox = e.clientX;
-        st.turn = beginTurn(dir);
-        st.p = dir > 0 ? 0 : 1;
-        haptic(6);
-        try { stage.setPointerCapture(e.pointerId); } catch (err) { /* egal */ }
-      }
-      if (st.mode !== 1) return;
-      st.p = dragP(e.clientX);
-      if (!raf) raf = requestAnimationFrame(function () { raf = 0; if (st && st.mode === 1) applyFrame(st.turn, st.p); });
-    });
-
-    function end(e, cancelled) {
-      if (!st || e.pointerId !== st.id) return;
-      var s = st;
-      st = null;
-      if (s.mode === 1) {
-        cancelAnimationFrame(raf);
-        raf = 0;
-        var t = s.turn, v = velocity(s), p = s.p;
-        applyFrame(t, p);
-        var done = !cancelled && (t.dir > 0
-          ? (v < -0.35 || (p > 0.3 && v < 0.35))
-          : (v > 0.35 || (p < 0.7 && v > -0.35)));
-        var target = done === (t.dir > 0) ? 1 : 0;
-        var dist = Math.abs(target - p);
-        var ms = done ? Math.max(220, TURN_MS * dist * 0.9) : Math.max(200, 420 * dist);
-        runTurn(t, p, target, ms, RELEASE_EASE, function () { endTurn(t, done); });
-        return;
-      }
-      if (s.mode === -1) return;
-      var dx = e.clientX - s.x, dy = e.clientY - s.y, dt = performance.now() - s.t;
-      if (cancelled || s.inter || Math.abs(dx) > 10 || Math.abs(dy) > 10 || dt > 600) return;
-      if (String(window.getSelection ? window.getSelection() : '')) return;
-      if (!isOpen) {
-        if (e.target.closest('.book')) openBook();
-        return;
-      }
-      var r = book.getBoundingClientRect();
-      if (e.clientX < r.left + r.width / 2) prev(); else next();
-    }
-
-    stage.addEventListener('pointerup', function (e) { end(e, false); });
-    stage.addEventListener('pointercancel', function (e) { end(e, true); });
-
-    cover.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openBook(); }
-    });
+  function setupControls() {
+    setupTap();
     $('#prev').addEventListener('click', prev);
     $('#next').addEventListener('click', next);
     document.addEventListener('keydown', function (e) {
