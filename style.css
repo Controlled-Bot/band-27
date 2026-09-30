@@ -670,7 +670,7 @@ mark.ph {
 }
 .gift__copy { margin-top: .6em; background: rgba(200, 100, 59, .13); color: #B0532C; }
 .gift__copy svg { width: 1.2em; height: 1.2em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.gift__copy.is-copied { background: #34C759; color: #fff; }
+.gift__copy.is-copied { background: #B0532C; color: #fff; }   /* kurz kräftiges Terrakotta */
 .gift__redeem {
   align-self: stretch;
   margin-top: .7em;
